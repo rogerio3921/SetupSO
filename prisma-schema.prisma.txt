@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id    String @id @default(uuid())
+  name  String
+  createdAt DateTime @default(now())
+  salas Sala[]
+}
+
+model Sala {
+  id       String  @id @default(uuid())
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId String
+  name     String
+  createdAt DateTime @default(now())
+  casos    CasoCirurgico[]
+  salaCustos SalaCusto[]
+}
+
+model CasoCirurgico {
+  id           String     @id @default(uuid())
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  tenantId     String
+  sala         Sala?      @relation(fields: [salaId], references: [id])
+  salaId       String?
+  pacienteNome String?
+  scheduledAt  DateTime?
+  createdAt    DateTime   @default(now())
+  eventos      EventoCaso[]
+}
+
+model EventoCaso {
+  id        String   @id @default(uuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  caso      CasoCirurgico @relation(fields: [casoId], references: [id])
+  casoId    String
+  sala      Sala?     @relation(fields: [salaId], references: [id])
+  salaId    String?
+  eventoTipo String
+  timestamp  DateTime @default(now())
+  actorId    String?
+  actorRole  String?
+  channel    String?
+  metadata   Json?
+  // override removed per novo requisito (não permitir override)
+}
+
+model SalaCusto {
+  id String @id @default(uuid())
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+  sala Sala @relation(fields: [salaId], references: [id])
+  salaId String
+  custoPorMinuto Float
+  effectiveFrom DateTime @default(now())
+  effectiveTo DateTime?
+}
+
+model AlertRule {
+  id String @id @default(uuid())
+  tenantId String
+  name String
+  type String
+  level String
+  condition Json
+  enabled Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Alert {
+  id String @id @default(uuid())
+  tenantId String
+  salaId String?
+  casoId String?
+  ruleId String?
+  level String
+  message String
+  context Json?
+  status String @default("open")
+  detectedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+  tenantId String
+  userId String?
+  action String
+  targetType String?
+  targetId String?
+  details Json?
+  createdAt DateTime @default(now())
+}
