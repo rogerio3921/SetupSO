@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Setup de Sala — Dashboard Gerencial</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+    .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 min-h-screen">
+  
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Dashboard Gerencial</h1>
+          <p class="text-sm text-slate-500 mt-1">Setup de Sala — Centro Cirúrgico</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right">
+            <div id="currentDate" class="text-sm font-medium text-slate-700"></div>
+            <div id="currentTime" class="text-xs text-slate-500"></div>
+          </div>
+          <button id="btnRefresh" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+            Atualizar
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      
+      <!-- Total Eventos -->
+      <div class="stat-card bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Total Eventos</p>
+            <p id="totalEvents" class="text-3xl font-bold text-slate-900 mt-2">0</p>
+          </div>
+          <div class="bg-indigo-100 rounded-full p-3">
+            <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pacientes Hoje -->
+      <div class="stat-card bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Pacientes Hoje</p>
+            <p id="totalPatients" class="text-3xl font-bold text-emerald-600 mt-2">0</p>
+          </div>
+          <div class="bg-emerald-100 rounded-full p-3">
+            <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Procedimentos Concluídos -->
+      <div class="stat-card bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Proc. Concluídos</p>
+            <p id="completedProcedures" class="text-3xl font-bold text-blue-600 mt-2">0</p>
+          </div>
+          <div class="bg-blue-100 rounded-full p-3">
+            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tempo Médio -->
+      <div class="stat-card bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Tempo Médio</p>
+            <p id="avgTime" class="text-3xl font-bold text-amber-600 mt-2">--</p>
+          </div>
+          <div class="bg-amber-100 rounded-full p-3">
+            <svg class="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      
+      <!-- Events Timeline Chart -->
+      <div class="bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900 mb-4">Eventos por Tipo</h3>
+        <canvas id="eventsChart" height="200"></canvas>
+      </div>
+
+      <!-- Hourly Activity Chart -->
+      <div class="bg-white rounded-xl shadow-md p-6 border border-slate-200">
+        <h3 class="text-lg font-semibold text-slate-900 mb-4">Atividade por Hora</h3>
+        <canvas id="hourlyChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- Events Table -->
+    <div class="bg-white rounded-xl shadow-md border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-slate-900">Registro de Eventos</h3>
+          <div class="flex items-center gap-2">
+            <select id="filterType" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5">
+              <option value="all">Todos os Tipos</option>
+              <option value="entrada_paciente">Entrada Paciente</option>
+              <option value="saida_paciente">Saída Paciente</option>
+              <option value="inicio_anestesia">Início Anestesia</option>
+              <option value="fim_anestesia">Fim Anestesia</option>
+              <option value="inicio_procedimento">Início Procedimento</option>
+              <option value="fim_procedimento">Fim Procedimento</option>
+              <option value="entrada_cme">Entrada CME</option>
+              <option value="saida_cme">Saída CME</option>
+              <option value="entrada_limpeza">Entrada Limpeza</option>
+              <option value="saida_limpeza">Saída Limpeza</option>
+            </select>
+            <button id="btnClearData" class="text-sm text-red-600 hover:text-red-700 font-medium px-3 py-1.5 border border-red-300 rounded-lg hover:bg-red-50 transition">
+              Limpar Dados
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Data/Hora</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Caso</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Tipo de Evento</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody id="eventsTableBody" class="bg-white divide-y divide-slate-200">
+            <!-- Events will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div id="emptyState" class="hidden px-6 py-12 text-center">
+        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-slate-900">Nenhum evento registrado</h3>
+        <p class="mt-1 text-sm text-slate-500">Comece registrando eventos pelo tablet.</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // Storage key
+    const STORAGE_KEY = 'setup_sala_events_demo_v2';
+    
+    // Load events from localStorage
+    let allEvents = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let filteredEvents = [...allEvents];
+
+    // Chart instances
+    let eventsChart = null;
+    let hourlyChart = null;
+
+    // Initialize
+    function init() {
+      updateDateTime();
+      setInterval(updateDateTime, 1000);
+      loadDashboard();
+      setupEventListeners();
+    }
+
+    // Update date and time
+    function updateDateTime() {
+      const now = new Date();
+      document.getElementById('currentDate').textContent = now.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      document.getElementById('currentTime').textContent = now.toLocaleTimeString('pt-BR');
+    }
+
+    // Load dashboard data
+    function loadDashboard() {
+      allEvents = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      applyFilter();
+      updateKPIs();
+      updateCharts();
+      renderEventsTable();
+    }
+
+    // Apply filter
+    function applyFilter() {
+      const filterValue = document.getElementById('filterType').value;
+      if (filterValue === 'all') {
+        filteredEvents = [...allEvents];
+      } else {
+        filteredEvents = allEvents.filter(e => e.eventType === filterValue);
+      }
+    }
+
+    // Update KPIs
+    function updateKPIs() {
+      // Total events
+      document.getElementById('totalEvents').textContent = allEvents.length;
+
+      // Total patients (count unique entrada_paciente events)
+      const patientEntries = allEvents.filter(e => e.eventType === 'entrada_paciente');
+      document.getElementById('totalPatients').textContent = patientEntries.length;
+
+      // Completed procedures (count fim_procedimento)
+      const completedProc = allEvents.filter(e => e.eventType === 'fim_procedimento');
+      document.getElementById('completedProcedures').textContent = completedProc.length;
+
+      // Average time (simplified - calculate average time between entrada and saida paciente)
+      const avgTimeElement = document.getElementById('avgTime');
+      const avgMinutes = calculateAverageTime();
+      if (avgMinutes > 0) {
+        const hours = Math.floor(avgMinutes / 60);
+        const mins = Math.floor(avgMinutes % 60);
+        avgTimeElement.textContent = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+      } else {
+        avgTimeElement.textContent = '--';
+      }
+    }
+
+    // Calculate average time between entrada and saida paciente
+    function calculateAverageTime() {
+      const entradas = allEvents.filter(e => e.eventType === 'entrada_paciente');
+      const saidas = allEvents.filter(e => e.eventType === 'saida_paciente');
+      
+      if (entradas.length === 0 || saidas.length === 0) return 0;
+
+      let totalMinutes = 0;
+      let count = 0;
+
+      entradas.forEach(entrada => {
+        const matchingSaida = saidas.find(s => 
+          s.caseId === entrada.caseId && 
+          new Date(s.timestamp) > new Date(entrada.timestamp)
+        );
+        
+        if (matchingSaida) {
+          const diff = new Date(matchingSaida.timestamp) - new Date(entrada.timestamp);
+          totalMinutes += diff / (1000 * 60);
+          count++;
+        }
+      });
+
+      return count > 0 ? totalMinutes / count : 0;
+    }
+
+    // Update charts
+    function updateCharts() {
+      updateEventsChart();
+      updateHourlyChart();
+    }
+
+    // Events by type chart
+    function updateEventsChart() {
+      const ctx = document.getElementById('eventsChart').getContext('2d');
+      
+      const eventTypes = {
+        'entrada_paciente': 'Entrada Paciente',
+        'saida_paciente': 'Saída Paciente',
+        'inicio_anestesia': 'Início Anestesia',
+        'fim_anestesia': 'Fim Anestesia',
+        'inicio_procedimento': 'Início Procedimento',
+        'fim_procedimento': 'Fim Procedimento',
+        'entrada_cme': 'Entrada CME',
+        'saida_cme': 'Saída CME',
+        'entrada_limpeza': 'Entrada Limpeza',
+        'saida_limpeza': 'Saída Limpeza'
+      };
+
+      const counts = {};
+      Object.keys(eventTypes).forEach(type => {
+        counts[type] = allEvents.filter(e => e.eventType === type).length;
+      });
+
+      const data = {
+        labels: Object.values(eventTypes),
+        datasets: [{
+          label: 'Quantidade',
+          data: Object.values(counts),
+          backgroundColor: [
+            '#10b981', '#84cc16', '#6366f1', '#4f46e5',
+            '#ef4444', '#7c2d12', '#dc2626', '#fca5a5',
+            '#64748b', '#94a3b8'
+          ],
+          borderWidth: 0
+        }]
+      };
+
+      if (eventsChart) {
+        eventsChart.destroy();
+      }
+
+      eventsChart = new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+          }
+        }
+      });
+    }
+
+    // Hourly activity chart
+    function updateHourlyChart() {
+      const ctx = document.getElementById('hourlyChart').getContext('2d');
+      
+      const hourlyCounts = new Array(24).fill(0);
+      allEvents.forEach(event => {
+        const hour = new Date(event.timestamp).getHours();
+        hourlyCounts[hour]++;
+      });
+
+      const data = {
+        labels: Array.from({length: 24}, (_, i) => `${i}h`),
+        datasets: [{
+          label: 'Eventos',
+          data: hourlyCounts,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99, 102, 241, 0.1)',
+          fill: true,
+          tension: 0.4
+        }]
+      };
+
+      if (hourlyChart) {
+        hourlyChart.destroy();
+      }
+
+      hourlyChart = new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+          }
+        }
+      });
+    }
+
+    // Render events table
+    function renderEventsTable() {
+      const tbody = document.getElementById('eventsTableBody');
+      const emptyState = document.getElementById('emptyState');
+      
+      tbody.innerHTML = '';
+
+      if (filteredEvents.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      const sortedEvents = [...filteredEvents].sort((a, b) => 
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+
+      sortedEvents.forEach(event => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50 transition';
+        
+        const formattedDate = new Date(event.timestamp).toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        const eventLabel = getEventLabel(event.eventType);
+        const statusBadge = getStatusBadge(event.eventType);
+
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">${formattedDate}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-700">${event.caseId}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">${eventLabel}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm">${statusBadge}</td>
+        `;
+
+        tbody.appendChild(row);
+      });
+    }
+
+    // Get event label
+    function getEventLabel(type) {
+      const labels = {
+        'entrada_paciente': 'Entrada Paciente',
+        'saida_paciente': 'Saída Paciente',
+        'inicio_anestesia': 'Início Anestesia',
+        'fim_anestesia': 'Fim Anestesia',
+        'inicio_procedimento': 'Início Procedimento',
+        'fim_procedimento': 'Fim Procedimento',
+        'entrada_cme': 'Entrada CME',
+        'saida_cme': 'Saída CME',
+        'entrada_limpeza': 'Entrada Limpeza',
+        'saida_limpeza': 'Saída Limpeza'
+      };
+      return labels[type] || type;
+    }
+
+    // Get status badge
+    function getStatusBadge(type) {
+      const badges = {
+        'entrada_paciente': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700">Entrada</span>',
+        'saida_paciente': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-lime-100 text-lime-700">Saída</span>',
+        'inicio_anestesia': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-700">Início</span>',
+        'fim_anestesia': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-indigo-200 text-indigo-800">Fim</span>',
+        'inicio_procedimento': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-rose-100 text-rose-700">Início</span>',
+        'fim_procedimento': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-200 text-slate-800">Fim</span>',
+        'entrada_cme': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">CME In</span>',
+        'saida_cme': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-red-200 text-red-800">CME Out</span>',
+        'entrada_limpeza': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">Limpeza In</span>',
+        'saida_limpeza': '<span class="px-2 py-1 text-xs font-medium rounded-full bg-slate-200 text-slate-800">Limpeza Out</span>"
+      };
+      return badges[type] || '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">Outro</span>';
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+      document.getElementById('btnRefresh').addEventListener('click', loadDashboard);
+      
+      document.getElementById('filterType').addEventListener('change', () => {
+        applyFilter();
+        renderEventsTable();
+      });
+
+      document.getElementById('btnClearData').addEventListener('click', () => {
+        if (confirm('Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita.')) {
+          localStorage.removeItem(STORAGE_KEY);
+          loadDashboard();
+        }
+      });
+
+      // Listen for storage changes (from tablet)
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY) {
+          loadDashboard();
+        }
+      });
+    }
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+
+</body>
+</html>
