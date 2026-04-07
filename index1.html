@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SetupSO — Técnico (Offline)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .card { border-radius: 18px; }
+    .btn { border-radius: 16px; font-weight: 900; }
+    .btn-xl { padding: 1.05rem 1rem; font-size: 1.02rem; }
+    .chip { border-radius: 999px; padding: .15rem .55rem; font-size: .72rem; font-weight: 900; }
+    .mono { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div class="max-w-2xl mx-auto p-4">
+
+    <!-- HEADER -->
+    <header class="card shadow-sm p-4 text-white border border-slate-200"
+      style="background: linear-gradient(135deg, #0b2a4a 0%, #0f3c6e 55%, #134e91 100%);">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-black truncate" id="roomTitle">Sala 3</h1>
+            <span class="chip bg-white/15 text-white border border-white/20" id="roomStatus">EM PREPARO</span>
+          </div>
+
+          <div class="mt-1 text-sm text-white/90 truncate" id="caseLine"></div>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/85" id="patientLine"></div>
+
+          <!-- Allergy banner (only if exists) -->
+          <div id="allergyBanner" class="mt-3 inline-flex items-center gap-2 bg-rose-600/95 border border-rose-300/30 px-3 py-2 rounded-xl">
+            <span class="chip bg-white/15 border border-white/20">ALERGIA</span>
+            <span class="text-sm font-black" id="allergyText"></span>
+          </div>
+        </div>
+
+        <div class="text-right shrink-0">
+          <div class="text-3xl font-black mono" id="clock">--:--</div>
+          <div class="mt-2 flex items-center justify-end gap-2">
+            <span class="chip bg-white/15 border border-white/20 text-white">OFFLINE</span>
+            <button id="btnDetails" class="btn bg-white/15 hover:bg-white/20 border border-white/20 px-3 py-2">
+              Detalhes
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-white/85">
+        <div class="bg-white/10 border border-white/15 rounded-xl p-2">
+          Aviso: <span class="font-black mono" id="noticeNumber"></span>
+        </div>
+        <div class="bg-white/10 border border-white/15 rounded-xl p-2">
+          Atendimento: <span class="font-black mono" id="attendanceNumber"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ACTIONS -->
+    <section class="mt-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-black text-slate-700 uppercase tracking-wide">Ações</h2>
+        <div class="flex items-center gap-2">
+          <button id="btnVoice" class="btn bg-white border border-slate-200 px-4 py-2 text-slate-800">Modo voz</button>
+          <button id="btnReset" class="btn bg-rose-600 text-white px-4 py-2">Limpar</button>
+        </div>
+      </div>
+
+      <!-- ACTIONS - FIXED SEQUENCE 1..13 (reordered) -->
+      <div id="actionsGrid" class="grid grid-cols-2 gap-3"></div>
+
+      <p class="mt-3 text-xs text-slate-500">
+        Offline (localStorage). Regras MVP: toggle por evento + auto-fechamentos em etapas encadeadas.
+      </p>
+    </section>
+
+    <!-- RECENT EVENTS -->
+    <section class="card mt-4 bg-white border border-slate-200 shadow-sm p-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide">Eventos recentes</h3>
+        <button id="btnExport" class="text-sm font-bold text-slate-600 underline">Exportar JSON</button>
+      </div>
+
+      <!-- Durations summary (all stages, CLOSED only) -->
+      <div class="mt-3">
+        <div class="text-xs font-black text-slate-600 uppercase tracking-wide">
+          Duração das etapas (concluídas)
+        </div>
+        <ul id="durationsList" class="mt-2 space-y-1 text-sm"></ul>
+        <div class="mt-2 flex items-center justify-between text-sm font-black border-t border-slate-200 pt-2">
+          <span class="text-slate-700">Total (etapas concluídas)</span>
+          <span class="mono text-slate-900" id="durationsTotal">00:00:00</span>
+        </div>
+      </div>
+
+      <ul id="recentEvents" class="mt-4 space-y-2 text-sm"></ul>
+
+      <div class="mt-4 grid grid-cols-2 gap-3">
+        <button id="btnNote" class="btn bg-slate-100 border border-slate-200 px-4 py-3 text-slate-800">
+          Observação rápida
+        </button>
+        <button id="btnNurse" class="btn bg-rose-600 text-white px-4 py-3">
+          Solicitar enfermeiro
+        </button>
+      </div>
+
+      <div id="toast" class="hidden mt-3 text-sm font-bold bg-slate-900 text-white px-3 py-2 rounded-xl"></div>
+    </section>
+  </div>
+
+  <!-- DETAILS MODAL -->
+  <div id="detailsModal" class="hidden fixed inset-0 bg-black/40 p-4">
+    <div class="max-w-2xl mx-auto card bg-white border border-slate-200 shadow-lg p-4">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="text-sm font-black">Detalhes do paciente / caso</div>
+          <div class="text-xs text-slate-500">Offline. Depois virá do mapa cirúrgico do hospital.</div>
+        </div>
+        <button id="btnCloseDetails" class="btn bg-slate-100 border border-slate-200 px-3 py-2">Fechar</button>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-3 text-sm" id="detailsGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==============================
+    // Storage
+    // ==============================
+    const STORAGE_KEY = "setupso_offline_state_single_v6";
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch {
+        return {};
+      }
+    }
+    function saveState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function resetState() { localStorage.removeItem(STORAGE_KEY); }
+
+    // ==============================
+    // Utils
+    // ==============================
+    function nowISO() { return new Date().toISOString(); }
+    function formatTime(d) { return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
+    function uid() { return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16); }
+    function pad2(n) { return String(n).padStart(2, "0"); }
+
+    function formatDuration(ms) {
+      if (!ms || ms < 0) ms = 0;
+      const totalSeconds = Math.floor(ms / 1000);
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+    }
+
+    // ==============================
+    // Event types (REORDERED)
+    // ==============================
+    const EVENT_TYPES = [
+      { key: "anesthesia_team", label: "Equipe anestesia", mode: "in_out", seq: 1 },
+      { key: "surgical_team", label: "Equipe cirúrgica", mode: "in_out", seq: 2 },
+
+      { key: "transport_patient", label: "Transporte paciente", mode: "start_end", seq: 3 },
+      { key: "patient_in_or", label: "Paciente em SO", mode: "in_out", seq: 4 },
+      { key: "anesthesia", label: "Anestesia", mode: "start_end", seq: 5 },
+      { key: "positioning", label: "Posicionamento", mode: "start_end", seq: 6 },
+      { key: "time_out", label: "Time out", mode: "start_end", seq: 7 },
+      { key: "surgery", label: "Cirurgia", mode: "start_end", seq: 8 },
+      { key: "cme", label: "CME", mode: "in_out", seq: 9 },
+      { key: "cleaning", label: "Limpeza", mode: "in_out", seq: 10 },
+      { key: "pharmacy", label: "Farmácia", mode: "in_out", seq: 11 },
+      { key: "clinical_engineering", label: "Eng. clínica", mode: "in_out", seq: 12 },
+      { key: "room_setup", label: "Montagem sala", mode: "start_end", seq: 13 }
+    ];
+
+    function isTeamCard(eventKey) {
+      return eventKey === "anesthesia_team" || eventKey === "surgical_team";
+    }
+
+    function actionLabel(action) {
+      switch (action) {
+        case "start": return "INÍCIO";
+        case "end": return "FIM";
+        case "in": return "ENTRADA";
+        case "out": return "SAÍDA";
+        default: return String(action).toUpperCase();
+      }
+    }
+
+    function nextActionForEvent(eventType, eventsForKey) {
+      const actions = eventsForKey.map(e => e.action);
+
+      if (eventType.mode === "start_end") {
+        const started = actions.includes("start");
+        const ended = actions.includes("end");
+        if (!started) return "start";
+        if (started && !ended) return "end";
+        return "start";
+      }
+      if (eventType.mode === "in_out") {
+        const inside = actions.includes("in") && !actions.includes("out");
+        if (!actions.includes("in")) return "in";
+        if (inside) return "out";
+        return "in";
+      }
+      return "start";
+    }
+
+    function computeEventUIState(eventType, eventsForKey) {
+      const actions = eventsForKey.map(e => e.action);
+      const next = nextActionForEvent(eventType, eventsForKey);
+
+      let validation = { ok: true };
+      if (next === "end" && !actions.includes("start")) validation = { ok: false, reason: "Não é possível finalizar sem iniciar." };
+      if (next === "out" && !actions.includes("in")) validation = { ok: false, reason: "Não é possível registrar saída sem entrada." };
+
+      let state = "idle";
+      if (eventType.mode === "start_end") {
+        if (actions.includes("start") && !actions.includes("end")) state = "in_progress";
+        else if (actions.includes("start") && actions.includes("end")) state = "done";
+      } else {
+        if (actions.includes("in") && !actions.includes("out")) state = "in_progress";
+        else if (actions.includes("in") && actions.includes("out")) state = "done";
+      }
+
+      return { state, nextAction: next, nextActionLabel: actionLabel(next), validation };
+    }
+
+    // ==============================
+    // Auto-close rules
+    // ==============================
+    function isOpen(eventKey, st) {
+      const t = EVENT_TYPES.find(x => x.key === eventKey);
+      const ev = st.events.filter(e => e.eventKey === eventKey);
+      const actions = ev.map(e => e.action);
+      if (!t) return false;
+      if (t.mode === "start_end") return actions.includes("start") && !actions.includes("end");
+      if (t.mode === "in_out") return actions.includes("in") && !actions.includes("out");
+      return false;
+    }
+
+    function autoClose(eventKey, st) {
+      const t = EVENT_TYPES.find(x => x.key === eventKey);
+      if (!t) return;
+      if (!isOpen(eventKey, st)) return;
+      const action = (t.mode === "start_end") ? "end" : "out";
+      st.events.push({ id: uid(), eventKey, action, happenedAt: nowISO(), auto: true });
+    }
+
+    function applyAutoClosures({ eventKey, action }, st) {
+      if (eventKey === "patient_in_or" && action === "in") autoClose("transport_patient", st);
+      if (eventKey === "anesthesia" && action === "start") autoClose("patient_in_or", st);
+      if (eventKey === "time_out" && action === "start") autoClose("positioning", st);
+      if (eventKey === "surgery" && action === "start") autoClose("time_out", st);
+    }
+
+    // ==============================
+    // Durations per stage (CLOSED only; SUM cycles; includes auto closings)
+    // - Matches the button flow: open on start/in, close on next end/out.
+    // ==============================
+    function sumDurationsByScan(events, openAction, closeAction) {
+      const sorted = [...events].sort((a,b) => new Date(a.happenedAt) - new Date(b.happenedAt));
+      let openAt = null;
+      let sum = 0;
+
+      for (const e of sorted) {
+        if (e.action === openAction) {
+          if (openAt === null) openAt = new Date(e.happenedAt).getTime();
+          // if already open, ignore (don't invent rules)
+          continue;
+        }
+        if (e.action === closeAction) {
+          if (openAt !== null) {
+            const closeAt = new Date(e.happenedAt).getTime();
+            if (closeAt >= openAt) sum += (closeAt - openAt);
+            openAt = null;
+          }
+          // if no openAt, ignore orphan close
+        }
+      }
+
+      return sum;
+    }
+
+    function computeAllStageDurationsClosed(st) {
+      const rows = [];
+      let grandTotalMs = 0;
+
+      for (const t of EVENT_TYPES) {
+        const events = st.events.filter(e => e.eventKey === t.key);
+        let ms = 0;
+
+        if (t.mode === "start_end") {
+          ms = sumDurationsByScan(events, "start", "end");
+          rows.push({ key: t.key, label: t.label, kind: "início–fim", ms });
+        } else {
+          ms = sumDurationsByScan(events, "in", "out");
+          rows.push({ key: t.key, label: t.label, kind: "entrada–saída", ms });
+        }
+
+        grandTotalMs += ms;
+      }
+
+      return { rows, grandTotalMs };
+    }
+
+    function renderDurationsList() {
+      const el = document.getElementById("durationsList");
+      const totalEl = document.getElementById("durationsTotal");
+      const { rows, grandTotalMs } = computeAllStageDurationsClosed(state);
+
+      el.innerHTML = "";
+
+      for (const r of rows) {
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between gap-3";
+        li.innerHTML = `
+          <span class="truncate text-slate-700">${r.label}: <span class="text-slate-500 font-bold">${r.kind}</span></span>
+          <span class="mono font-black text-slate-900">${r.ms > 0 ? formatDuration(r.ms) : "—"}</span>
+        `;
+        el.appendChild(li);
+      }
+
+      totalEl.textContent = grandTotalMs > 0 ? formatDuration(grandTotalMs) : "00:00:00";
+    }
+
+    // ==============================
+    // State init
+    // ==============================
+    const state = loadState();
+
+    state.room = state.room || { code: "Sala 3", status: "EM PREPARO" };
+    state.case = state.case || {
+      id: "case-demo-322",
+      chartNumber: "12345",
+      noticeNumber: "AV-2026-000123",
+      attendanceNumber: "AT-889900",
+      fullName: "João da Silva Souza",
+      birthDate: "1981-03-12",
+      allergies: "Dipirona",
+      heightCm: 170,
+      weightKg: 82,
+      insurance: "Unimed",
+      procedureName: "Artroplastia",
+      surgeonName: "Dr. Silva"
+    };
+    state.events = state.events || [];
+
+    function save() { saveState(state); }
+
+    // ==============================
+    // DOM
+    // ==============================
+    const elActionsGrid = document.getElementById("actionsGrid");
+    const elRecent = document.getElementById("recentEvents");
+    const elToast = document.getElementById("toast");
+
+    function toast(msg) {
+      elToast.textContent = msg;
+      elToast.classList.remove("hidden");
+      setTimeout(() => elToast.classList.add("hidden"), 2500);
+    }
+
+    function renderHeader() {
+      document.getElementById("roomTitle").textContent = state.room.code;
+      document.getElementById("roomStatus").textContent = state.room.status;
+
+      document.getElementById("caseLine").innerHTML =
+        `Caso: <span class="font-black">#322</span> • Proced.: <span class="font-semibold">${state.case.procedureName}</span>`;
+
+      document.getElementById("patientLine").innerHTML =
+        `<span>Paciente: <span class="font-semibold">${state.case.fullName}</span></span>
+         <span class="text-white/30">•</span>
+         <span>Nasc.: <span class="font-semibold">${new Date(state.case.birthDate).toLocaleDateString("pt-BR")}</span></span>
+         <span class="text-white/30">•</span>
+         <span>Cirurgião: <span class="font-semibold">${state.case.surgeonName}</span></span>`;
+
+      document.getElementById("noticeNumber").textContent = state.case.noticeNumber || "—";
+      document.getElementById("attendanceNumber").textContent = state.case.attendanceNumber || "—";
+
+      const allergyBanner = document.getElementById("allergyBanner");
+      if (state.case.allergies && state.case.allergies.trim()) {
+        document.getElementById("allergyText").textContent = state.case.allergies;
+        allergyBanner.classList.remove("hidden");
+      } else {
+        allergyBanner.classList.add("hidden");
+      }
+    }
+
+    function getEventsForKey(eventKey) {
+      return state.events
+        .filter(e => e.eventKey === eventKey)
+        .sort((a,b) => new Date(a.happenedAt) - new Date(b.happenedAt));
+    }
+
+    function addEvent({ eventKey, action }) {
+      state.events.push({ id: uid(), eventKey, action, happenedAt: nowISO() });
+      save();
+    }
+
+    function badgeTextForCard(t, ui) {
+      if (isTeamCard(t.key)) {
+        if (ui.state === "in_progress") return "EM SO";
+        if (ui.state === "done") return "SAÍDA DE SO";
+        return ui.nextActionLabel;
+      }
+      if (ui.state === "in_progress") return "EM ANDAMENTO";
+      if (ui.state === "done") return "CONCLUÍDO";
+      return ui.nextActionLabel;
+    }
+
+    function stylesForCard(t, ui) {
+      const team = isTeamCard(t.key);
+
+      if (team) {
+        if (ui.state === "in_progress") {
+          return {
+            style: "background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 60%, #2563eb 100%); border-color:#93c5fd;",
+            textCls: "text-white",
+            badgeCls: "chip bg-white/15 border border-white/20 text-white"
+          };
+        }
+        if (ui.state === "done") {
+          return {
+            style: "background: linear-gradient(180deg, #f0f7ff 0%, #e0f2fe 100%); border-color:#93c5fd;",
+            textCls: "text-slate-900",
+            badgeCls: "chip bg-sky-200 text-sky-900"
+          };
+        }
+        return {
+          style: "background: linear-gradient(180deg, #f0f7ff 0%, #dbeafe 100%); border-color:#93c5fd;",
+          textCls: "text-slate-900",
+          badgeCls: "chip bg-sky-100 text-sky-900"
+        };
+      }
+
+      if (ui.state === "in_progress") {
+        return {
+          style: "background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%); border-color:#93c5fd;",
+          textCls: "text-white",
+          badgeCls: "chip bg-white/15 border border-white/20 text-white"
+        };
+      }
+      if (ui.state === "done") {
+        return {
+          style: "background: linear-gradient(180deg, #ffffff 0%, #e8f2ff 100%); border-color:#bfdbfe;",
+          textCls: "text-slate-900",
+          badgeCls: "chip bg-sky-100 text-sky-800"
+        };
+      }
+      return {
+        style: "background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);",
+        textCls: "text-slate-900",
+        badgeCls: "chip bg-slate-100 text-slate-700"
+      };
+    }
+
+    function renderActions() {
+      elActionsGrid.innerHTML = "";
+
+      for (const t of EVENT_TYPES) {
+        const events = getEventsForKey(t.key);
+        const ui = computeEventUIState(t, events);
+
+        const badgeText = badgeTextForCard(t, ui);
+        const st = stylesForCard(t, ui);
+
+        const button = document.createElement("button");
+        button.className = `btn btn-xl border shadow-sm ${st.textCls}`;
+        button.setAttribute("style", st.style);
+
+        // NOTE: Removed "Toque para: ..." line to gain space (as requested).
+        button.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <span class="truncate">${t.seq}. ${t.label}</span>
+            <span class="${st.badgeCls}">${badgeText}</span>
+          </div>
+        `;
+
+        button.addEventListener("click", () => {
+          if (!ui.validation.ok) {
+            toast(`Bloqueado: ${ui.validation.reason}`);
+            return;
+          }
+
+          const next = nextActionForEvent(t, events);
+          applyAutoClosures({ eventKey: t.key, action: next }, state);
+          addEvent({ eventKey: t.key, action: next });
+
+          toast(`${t.label}: ${ui.nextActionLabel} registrado (${formatTime(new Date())})`);
+          renderAll();
+        });
+
+        elActionsGrid.appendChild(button);
+      }
+    }
+
+    function renderRecent() {
+      elRecent.innerHTML = "";
+
+      const items = [...state.events]
+        .sort((a,b) => new Date(b.happenedAt) - new Date(a.happenedAt))
+        .slice(0, 12);
+
+      if (items.length === 0) {
+        elRecent.innerHTML = `<li class="text-sm text-slate-500">Nenhum evento registrado ainda.</li>`;
+        return;
+      }
+
+      for (const e of items) {
+        const type = EVENT_TYPES.find(t => t.key === e.eventKey);
+        const auto = e.auto ? " • auto" : "";
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between gap-3";
+        li.innerHTML = `
+          <span class="truncate"><span class="mono font-black">${formatTime(new Date(e.happenedAt))}</span> — ${type?.label || e.eventKey} (${e.action})${auto}</span>
+          <button class="text-xs font-black text-slate-600 underline" title="Correção (futuro)">Corrigir</button>
+        `;
+        li.querySelector("button").addEventListener("click", () => toast("Correção com senha do enfermeiro (futuro)"));
+        elRecent.appendChild(li);
+      }
+    }
+
+    function renderDetailsModal() {
+      const grid = document.getElementById("detailsGrid");
+      const rows = [
+        ["Prontuário", state.case.chartNumber || "—"],
+        ["Aviso cirúrgico", state.case.noticeNumber || "—"],
+        ["Atendimento", state.case.attendanceNumber || "—"],
+        ["Convênio", state.case.insurance || "—"],
+        ["Altura / Peso", (state.case.heightCm && state.case.weightKg) ? `${state.case.heightCm} cm • ${state.case.weightKg} kg` : "—"],
+        ["Cirurgião", state.case.surgeonName || "—"],
+        ["Procedimento", state.case.procedureName || "—"],
+        ["Alergia", state.case.allergies || "—"]
+      ];
+
+      grid.innerHTML = rows.map(([k,v]) => `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 ${k === "Alergia" && v !== "—" ? "col-span-2 bg-rose-50 border-rose-200" : ""}">
+          <div class="text-xs text-slate-500 font-bold uppercase">${k}</div>
+          <div class="font-black">${v}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderAll() {
+      renderHeader();
+      renderActions();
+      renderDurationsList();
+      renderRecent();
+    }
+
+    // Modal
+    const detailsModal = document.getElementById("detailsModal");
+    document.getElementById("btnDetails").addEventListener("click", () => {
+      renderDetailsModal();
+      detailsModal.classList.remove("hidden");
+    });
+    document.getElementById("btnCloseDetails").addEventListener("click", () => detailsModal.classList.add("hidden"));
+    detailsModal.addEventListener("click", (e) => { if (e.target === detailsModal) detailsModal.classList.add("hidden"); });
+
+    // Misc
+    document.getElementById("btnReset").addEventListener("click", () => {
+      if (!confirm("Limpar todos os eventos salvos neste navegador?")) return;
+      resetState();
+      location.reload();
+    });
+
+    document.getElementById("btnExport").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `setupso_offline_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    });
+
+    document.getElementById("btnNote").addEventListener("click", () => toast("Observação rápida (futuro)"));
+    document.getElementById("btnNurse").addEventListener("click", () => toast("Solicitação ao enfermeiro (futuro)"));
+    document.getElementById("btnVoice").addEventListener("click", () => toast("Modo voz (futuro)"));
+
+    // Clock
+    function startClock() {
+      function tick() {
+        const d = new Date();
+        document.getElementById("clock").textContent =
+          d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      }
+      tick();
+      setInterval(tick, 1000);
+    }
+    startClock();
+
+    // Initial render
+    renderAll();
+  </script>
+</body>
+</html>
