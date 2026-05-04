@@ -1,0 +1,11 @@
+{
+  "name": "setupso",
+  "version": "2.0.0",
+  "description": "SetupSO — Controle de salas cirúrgicas (MVP 2)",
+  "scripts": {
+    "serve": "npx http-server . -p 8080 -o index8.html --cors"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
