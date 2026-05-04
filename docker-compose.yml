@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: setupso
+      POSTGRES_USER: setupso
+      POSTGRES_PASSWORD: setupso_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U setupso"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://setupso:setupso_dev@db:5432/setupso
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      PORT: 3000
+    command: >
+      sh -c "node server/migrate.js && node server/seed.js && node server/index.js"
+
+volumes:
+  pgdata:
