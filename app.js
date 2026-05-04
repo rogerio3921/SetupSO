@@ -1,18 +1,114 @@
-// SetupSO — MVP 2 — app.js (ULTRA robust: ZERO template strings)
-// Build: 2026-05-02 11:05
+// SetupSO — MVP 2 — app.js
+// Build: 2026-05-04 (com backend + autenticação)
 const APP_VERSION = "MVP2";
-const BUILD_STAMP = "2026-05-02 11:05";
+const BUILD_STAMP = "2026-05-04";
 
-const STORAGE_KEY = "setupso_mvp2_state_ultra_robust_20260502_1105";
+const STORAGE_KEY = "setupso_mvp2_state";
+const AUTH_KEY = "setupso_auth";
 const CLICK_LOCK_MS = 1000;
 
-/* ---------------- Storage ---------------- */
+/* ---------------- API / Auth ---------------- */
+const API_BASE = "";  // same-origin; change to "http://localhost:3000" if serving separately
+
+function authGetToken() {
+  try { const a = JSON.parse(localStorage.getItem(AUTH_KEY) || "{}"); return a.token || null; }
+  catch { return null; }
+}
+function authGetUsername() {
+  try { const a = JSON.parse(localStorage.getItem(AUTH_KEY) || "{}"); return a.username || null; }
+  catch { return null; }
+}
+function authSave(token, username) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ token: token, username: username }));
+}
+function authClear() { localStorage.removeItem(AUTH_KEY); }
+function isLoggedIn() { return !!authGetToken(); }
+
+async function apiPost(path, body) {
+  const token = authGetToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const resp = await fetch(API_BASE + path, { method: "POST", headers: headers, body: JSON.stringify(body) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || "Erro " + resp.status);
+  return data;
+}
+async function apiGet(path) {
+  const token = authGetToken();
+  const headers = {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const resp = await fetch(API_BASE + path, { method: "GET", headers: headers });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || "Erro " + resp.status);
+  return data;
+}
+async function apiPut(path, body) {
+  const token = authGetToken();
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const resp = await fetch(API_BASE + path, { method: "PUT", headers: headers, body: JSON.stringify(body) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || "Erro " + resp.status);
+  return data;
+}
+
+/* ---------------- Save indicator ---------------- */
+function setSaveIndicator(status) {
+  const el = document.getElementById("saveIndicator");
+  if (!el) return;
+  if (status === "saving") {
+    el.textContent = "Salvando…";
+    el.style.opacity = "0.7";
+  } else if (status === "saved") {
+    el.textContent = isLoggedIn() ? "✓ Salvo (servidor)" : "✓ Salvo (local)";
+    el.style.opacity = "1";
+  } else if (status === "error") {
+    el.textContent = "⚠ Erro ao salvar";
+    el.style.opacity = "1";
+  } else {
+    el.textContent = "—";
+    el.style.opacity = "0.5";
+  }
+}
+
+/* ---------------- Remote state sync ---------------- */
+let _syncTimer = null;
+function scheduleSyncToServer() {
+  if (!isLoggedIn()) return;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(function () {
+    _syncTimer = null;
+    syncStateToServer();
+  }, 1200);
+}
+async function syncStateToServer() {
+  if (!isLoggedIn()) return;
+  setSaveIndicator("saving");
+  try {
+    await apiPut("/api/state", { state: state });
+    setSaveIndicator("saved");
+  } catch (err) {
+    setSaveIndicator("error");
+    console.warn("SetupSO: falha ao sincronizar com servidor:", err.message);
+  }
+}
+async function loadStateFromServer() {
+  try {
+    const data = await apiGet("/api/state");
+    return data.state || {};
+  } catch (err) {
+    console.warn("SetupSO: falha ao carregar do servidor:", err.message);
+    return null;
+  }
+}
+
+/* ---------------- Storage (localStorage) ---------------- */
 function loadState() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
   catch { return {}; }
 }
 function saveState(st) { localStorage.setItem(STORAGE_KEY, JSON.stringify(st)); }
-function resetState() { localStorage.removeItem(STORAGE_KEY); }
+function resetState() { localStorage.removeItem(STORAGE_KEY); authClear(); }
 
 /* ---------------- Utils ---------------- */
 function uid() { return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16); }
@@ -109,7 +205,11 @@ const state = loadState();
 state.rooms = state.rooms || [{ id: "room-01", code: "Sala 3" }];
 state.cases = state.cases || [];
 state.eventsByCaseId = state.eventsByCaseId || {};
-function save() { saveState(state); }
+function save() {
+  saveState(state);
+  setSaveIndicator("saved");
+  scheduleSyncToServer();
+}
 
 /* ---------------- Cases ---------------- */
 function ensureActiveCase(roomId) {
@@ -888,6 +988,78 @@ function tickClockOnly() {
   if (dash && !dash.classList.contains("hidden")) renderDashboardTv();
 }
 
+
+/* ---------------- Export / Import JSON ---------------- */
+function exportStateJSON() {
+  try {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "setupso-backup-" + toISODate(new Date()) + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("JSON exportado com sucesso.");
+  } catch (err) {
+    toast("Erro ao exportar: " + err.message);
+  }
+}
+function importStateJSON(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (!imported || typeof imported !== "object") throw new Error("JSON inválido");
+      if (!confirm("Importar este arquivo vai substituir todos os dados atuais. Continuar?")) return;
+      Object.keys(state).forEach(function (k) { delete state[k]; });
+      Object.assign(state, imported);
+      state.rooms = state.rooms || [{ id: "room-01", code: "Sala 3" }];
+      state.cases = state.cases || [];
+      state.eventsByCaseId = state.eventsByCaseId || {};
+      save();
+      location.reload();
+    } catch (err) {
+      toast("Erro ao importar: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------------- Login UI helpers ---------------- */
+function showLoginOverlay() {
+  const o = safeEl("loginOverlay");
+  if (o) o.classList.remove("hidden");
+}
+function hideLoginOverlay() {
+  const o = safeEl("loginOverlay");
+  if (o) o.classList.add("hidden");
+}
+function showLoginError(msg) {
+  const e = safeEl("loginError");
+  if (!e) return;
+  e.textContent = msg;
+  e.classList.remove("hidden");
+}
+function clearLoginError() {
+  const e = safeEl("loginError");
+  if (e) e.classList.add("hidden");
+}
+function updateUserBadge() {
+  const badge = safeEl("userBadge");
+  const btnLogout = safeEl("btnLogout");
+  const username = authGetUsername();
+  if (username) {
+    if (badge) { badge.textContent = "👤 " + username; badge.classList.remove("hidden"); }
+    if (btnLogout) btnLogout.classList.remove("hidden");
+  } else {
+    if (badge) badge.classList.add("hidden");
+    if (btnLogout) btnLogout.classList.add("hidden");
+  }
+}
+
 /* ---------------- Wire + init ---------------- */
 function wire() {
   setTextById("buildStamp", APP_VERSION + " • " + BUILD_STAMP);
@@ -931,6 +1103,109 @@ function wire() {
     location.reload();
   });
 
+  /* Export / Import */
+  const btnExport = safeEl("btnExport");
+  if (btnExport) btnExport.addEventListener("click", exportStateJSON);
+
+  const inpImport = safeEl("inpImport");
+  if (inpImport) inpImport.addEventListener("change", function (e) {
+    importStateJSON(e.target.files && e.target.files[0]);
+    e.target.value = "";
+  });
+
+  /* Logout */
+  const btnLogout = safeEl("btnLogout");
+  if (btnLogout) btnLogout.addEventListener("click", function () {
+    if (!confirm("Sair da conta? Os dados locais permanecem salvos.")) return;
+    authClear();
+    updateUserBadge();
+    setSaveIndicator("saved");
+    toast("Sessão encerrada. Usando modo offline.");
+  });
+
+  /* Login overlay: switch between login/register panels */
+  const btnShowReg = safeEl("btnShowRegister");
+  const btnShowLog = safeEl("btnShowLogin");
+  if (btnShowReg) btnShowReg.addEventListener("click", function () {
+    clearLoginError();
+    safeEl("loginForm").classList.add("hidden");
+    safeEl("registerForm").classList.remove("hidden");
+  });
+  if (btnShowLog) btnShowLog.addEventListener("click", function () {
+    clearLoginError();
+    safeEl("registerForm").classList.add("hidden");
+    safeEl("loginForm").classList.remove("hidden");
+  });
+
+  /* Offline mode */
+  const btnOffline = safeEl("btnOfflineMode");
+  if (btnOffline) btnOffline.addEventListener("click", function () {
+    hideLoginOverlay();
+    setSaveIndicator("saved");
+    toast("Modo offline ativado. Dados salvos localmente.");
+  });
+
+  /* Login submit */
+  const btnLogin = safeEl("btnLogin");
+  if (btnLogin) btnLogin.addEventListener("click", function () {
+    clearLoginError();
+    const username = (safeEl("inpLoginUser") || {}).value || "";
+    const password = (safeEl("inpLoginPass") || {}).value || "";
+    if (!username || !password) { showLoginError("Preencha usuário e senha."); return; }
+    btnLogin.disabled = true;
+    btnLogin.textContent = "Entrando…";
+    apiPost("/api/auth/login", { username: username, password: password }).then(function (data) {
+      authSave(data.token, data.username);
+      updateUserBadge();
+      hideLoginOverlay();
+      setSaveIndicator("saving");
+      loadStateFromServer().then(function (remoteState) {
+        if (remoteState && Object.keys(remoteState).length > 0) {
+          Object.keys(state).forEach(function (k) { delete state[k]; });
+          Object.assign(state, remoteState);
+          state.rooms = state.rooms || [{ id: "room-01", code: "Sala 3" }];
+          state.cases = state.cases || [];
+          state.eventsByCaseId = state.eventsByCaseId || {};
+          saveState(state);
+        }
+        setSaveIndicator("saved");
+        setSelectedTab("tabRooms");
+        renderRooms();
+        renderDashboardTv();
+        renderReports();
+        toast("Bem-vindo, " + data.username + "!");
+      });
+    }).catch(function (err) {
+      showLoginError(err.message);
+      btnLogin.disabled = false;
+      btnLogin.textContent = "Entrar";
+    });
+  });
+
+  /* Register submit */
+  const btnReg = safeEl("btnRegister");
+  if (btnReg) btnReg.addEventListener("click", function () {
+    clearLoginError();
+    const username = (safeEl("inpRegUser") || {}).value || "";
+    const password = (safeEl("inpRegPass") || {}).value || "";
+    if (!username || !password) { showLoginError("Preencha todos os campos."); return; }
+    btnReg.disabled = true;
+    btnReg.textContent = "Criando conta…";
+    apiPost("/api/auth/register", { username: username, password: password }).then(function (data) {
+      authSave(data.token, data.username);
+      updateUserBadge();
+      hideLoginOverlay();
+      setSaveIndicator("saved");
+      toast("Conta criada! Bem-vindo, " + data.username + "!");
+    }).catch(function (err) {
+      showLoginError(err.message);
+      btnReg.disabled = false;
+      btnReg.textContent = "Criar conta";
+    });
+  });
+
+  updateUserBadge();
+
   ensureActiveCase(state.rooms[0].id);
 
   setSelectedTab("tabRooms");
@@ -940,6 +1215,28 @@ function wire() {
 
   tickClockOnly();
   setInterval(tickClockOnly, 1000);
+
+  /* Show login overlay if not already authenticated */
+  if (!isLoggedIn()) {
+    showLoginOverlay();
+    setSaveIndicator("saved");
+  } else {
+    setSaveIndicator("saving");
+    loadStateFromServer().then(function (remoteState) {
+      if (remoteState && Object.keys(remoteState).length > 0) {
+        Object.keys(state).forEach(function (k) { delete state[k]; });
+        Object.assign(state, remoteState);
+        state.rooms = state.rooms || [{ id: "room-01", code: "Sala 3" }];
+        state.cases = state.cases || [];
+        state.eventsByCaseId = state.eventsByCaseId || {};
+        saveState(state);
+        renderRooms();
+        renderDashboardTv();
+        renderReports();
+      }
+      setSaveIndicator("saved");
+    });
+  }
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
