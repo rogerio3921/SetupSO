@@ -1,0 +1,457 @@
+<!doctype html>
+<!--
+  SetupSO — MVP Online
+  Versão: MVP 2.1 — 2026-05-04
+  Autenticação multi-hospital com campo Hospital em texto livre.
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SetupSO — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .card  { border-radius: 18px; }
+    .btn   { border-radius: 16px; font-weight: 900; }
+    .btn-xl { padding: 1.05rem 1rem; font-size: 1.02rem; }
+    .chip  { border-radius: 999px; padding: .15rem .55rem; font-size: .72rem; font-weight: 900; }
+    .mono  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    input[type="time"], input[type="date"] { font-variant-numeric: tabular-nums; }
+
+    .hero {
+      background: linear-gradient(135deg, #0b2a4a 0%, #0f3c6e 55%, #134e91 100%);
+      color: white;
+    }
+    .tab-btn {
+      border-radius: 999px;
+      padding: .55rem .95rem;
+      font-weight: 900;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: rgba(255,255,255,.92);
+    }
+    .tab-btn[aria-selected="true"] {
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      border-color: rgba(255,255,255,.30);
+    }
+    .soft-panel {
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 16px;
+    }
+    .soft-input {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: .6rem .75rem;
+      font-weight: 800;
+    }
+
+    /* TV dashboard helpers */
+    .tv-kpi {
+      border-radius: 18px;
+      border: 1px solid #e2e8f0;
+      background: white;
+      padding: 14px;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    }
+    .tv-kpi .label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #64748b; font-weight: 900; }
+    .tv-kpi .value { margin-top: 6px; font-size: 22px; font-weight: 950; }
+    .tv-kpi .sub   { margin-top: 4px; font-size: 12px; color: #64748b; font-weight: 800; }
+
+    .tv-table th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #64748b; font-weight: 950; }
+    .tv-table td { font-size: 14px; font-weight: 800; color: #0f172a; }
+    .tv-table .small    { font-size: 12px; color: #475569; font-weight: 800; }
+    .tv-table .truncate2 { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tv-table .truncate3 { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .dashboard-wide { max-width: 1400px; }
+
+    /* Login-specific */
+    .login-input {
+      width: 100%;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 12px;
+      padding: .7rem .9rem;
+      font-size: 1rem;
+      font-weight: 700;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .login-input:focus { border-color: #3b82f6; }
+    .login-input.error { border-color: #ef4444; }
+    .field-error { color: #ef4444; font-size: .8rem; font-weight: 700; margin-top: .25rem; }
+
+    /* Slug hint below hospital field */
+    .slug-preview {
+      font-size: .75rem;
+      font-weight: 800;
+      color: #64748b;
+      margin-top: .25rem;
+      font-family: monospace;
+      min-height: 1.1em;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+
+  <!-- ═══════════════════════════════ LOGIN SCREEN ═══════════════════════════ -->
+  <div id="screenLogin" class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-sm">
+
+      <!-- Header card -->
+      <div class="card hero p-6 mb-4 shadow-lg text-center">
+        <div class="text-3xl font-black tracking-tight">SetupSO</div>
+        <div class="mt-1 text-sm text-white/80">Centro Cirúrgico — MVP Online</div>
+        <div class="mt-3">
+          <span class="chip bg-white/15 border border-white/20">MVP 2.1</span>
+        </div>
+      </div>
+
+      <!-- Login card -->
+      <div class="card bg-white border border-slate-200 shadow-sm p-6">
+        <h2 class="text-lg font-black text-slate-800 mb-4">Entrar</h2>
+
+        <form id="loginForm" novalidate>
+
+          <!-- Hospital (tenant) — free-text input -->
+          <div class="mb-4">
+            <label class="block text-sm font-black text-slate-700 mb-1" for="inpHospital">
+              Hospital
+            </label>
+            <input
+              id="inpHospital"
+              name="hospital"
+              type="text"
+              class="login-input"
+              placeholder="Ex.: hospital-central"
+              autocomplete="organization"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="none"
+            />
+            <!-- Live slug preview (shows canonical form while user types) -->
+            <div class="slug-preview" id="slugPreview"></div>
+            <div class="field-error hidden" id="errHospital"></div>
+          </div>
+
+          <!-- Identifier — username OR code -->
+          <div class="mb-4">
+            <label class="block text-sm font-black text-slate-700 mb-1" for="inpIdentifier">
+              Usuário ou Código
+            </label>
+            <input
+              id="inpIdentifier"
+              name="identifier"
+              type="text"
+              class="login-input"
+              placeholder="nome.sobrenome ou código"
+              autocomplete="username"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="none"
+            />
+            <div class="field-error hidden" id="errIdentifier"></div>
+          </div>
+
+          <!-- Password -->
+          <div class="mb-6">
+            <label class="block text-sm font-black text-slate-700 mb-1" for="inpPassword">
+              Senha
+            </label>
+            <input
+              id="inpPassword"
+              name="password"
+              type="password"
+              class="login-input"
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+            <div class="field-error hidden" id="errPassword"></div>
+          </div>
+
+          <!-- Global error -->
+          <div id="errGlobal" class="hidden mb-4 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3"></div>
+
+          <button
+            type="submit"
+            id="btnLogin"
+            class="btn w-full bg-blue-600 hover:bg-blue-700 text-white btn-xl"
+          >
+            Entrar
+          </button>
+        </form>
+
+        <div class="mt-4 text-center text-xs text-slate-400 font-bold">
+          Hospital: use o identificador fornecido pelo administrador.<br>
+          Ex.: <span class="mono font-black">hc-central</span>, <span class="mono font-black">hospital-abc</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ MAIN APP ══════════════════════════════ -->
+  <div id="screenApp" class="hidden">
+    <div class="max-w-3xl dashboard-wide mx-auto p-4">
+
+      <!-- HEADER -->
+      <header class="card shadow-sm p-4 border border-slate-200 hero">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl font-black truncate">SetupSO</h1>
+              <span class="chip bg-white/15 text-white border border-white/20">MVP Online</span>
+              <span class="chip bg-white/10 text-white border border-white/20 mono" id="buildStamp">v— • —</span>
+            </div>
+
+            <div class="mt-1 text-sm text-white/90">
+              <span id="headerTenant" class="font-black"></span> · <span id="headerUser"></span>
+            </div>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button id="tabRooms"     class="tab-btn" aria-selected="true">Salas</button>
+              <button id="tabDashboard" class="tab-btn" aria-selected="false">Dashboard (TV)</button>
+              <button id="tabReports"   class="tab-btn" aria-selected="false">Relatórios</button>
+            </div>
+          </div>
+
+          <div class="text-right shrink-0">
+            <div class="text-xs font-black text-white/85 mono" id="todayTop">--/--/----</div>
+            <div class="text-3xl font-black mono" id="clockTop">--:--:--</div>
+
+            <div class="mt-2 flex items-center justify-end gap-2">
+              <span class="chip bg-white/15 border border-white/20 text-white" id="onlineChip">ONLINE</span>
+              <button id="btnLogout" class="btn bg-rose-600 text-white px-4 py-2">Sair</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- VIEW: ROOMS -->
+      <section id="viewRooms" class="mt-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-black text-slate-700 uppercase tracking-wide">Painel de salas</h2>
+            <p class="text-xs text-slate-500">Salas do hospital.</p>
+          </div>
+        </div>
+        <div id="roomsGrid" class="mt-4 grid grid-cols-1 gap-3"></div>
+      </section>
+
+      <!-- VIEW: DASHBOARD (TV) -->
+      <section id="viewDashboard" class="hidden mt-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-black text-slate-700 uppercase tracking-wide">Dashboard (TV)</h2>
+            <p class="text-xs text-slate-500">1 linha por sala (case ativo). Atualiza em tempo real.</p>
+          </div>
+          <div class="text-xs text-slate-500 font-black mono" id="dashUpdatedAt">Atualizado: —</div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3" id="dashKpis"></div>
+
+        <div class="card mt-4 bg-white border border-slate-200 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-sm font-black text-slate-700 uppercase tracking-wide">Salas (ao vivo)</div>
+            <div class="text-xs text-slate-500">Horários em HH:mm:ss · Durações ao vivo</div>
+          </div>
+
+          <div class="mt-3 overflow-auto">
+            <table class="w-full tv-table">
+              <thead>
+                <tr class="text-left border-b border-slate-200">
+                  <th class="py-2 pr-3">Sala</th>
+                  <th class="py-2 pr-3">Status</th>
+                  <th class="py-2 pr-3">Paciente / Aviso</th>
+                  <th class="py-2 pr-3">Procedimento / Cirurgião</th>
+                  <th class="py-2 pr-3">SO in</th>
+                  <th class="py-2 pr-3">SO out</th>
+                  <th class="py-2 pr-3">T. SO</th>
+                  <th class="py-2 pr-3">Cir start</th>
+                  <th class="py-2 pr-3">Cir end</th>
+                  <th class="py-2 pr-3">T. Cir</th>
+                  <th class="py-2 pr-3">RPA in</th>
+                  <th class="py-2 pr-3">RPA out</th>
+                  <th class="py-2 pr-3">T. RPA</th>
+                  <th class="py-2 pr-3">Transp→RPA.in</th>
+                  <th class="py-2 pr-3">Total CC</th>
+                  <th class="py-2 pr-3">Auto?</th>
+                </tr>
+              </thead>
+              <tbody id="dashTvTable" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: REPORTS -->
+      <section id="viewReports" class="hidden mt-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-black text-slate-700 uppercase tracking-wide">Relatórios</h2>
+            <p class="text-xs text-slate-500">Histórico (ativos e finalizados) · HH:mm:ss</p>
+          </div>
+        </div>
+
+        <div class="card mt-4 bg-white border border-slate-200 shadow-sm p-4">
+          <div class="text-sm font-black text-slate-700 uppercase tracking-wide">Lista de cases</div>
+          <div class="mt-3 overflow-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs text-slate-500 uppercase tracking-wide border-b border-slate-200">
+                  <th class="py-2 pr-3">Sala</th>
+                  <th class="py-2 pr-3">Case</th>
+                  <th class="py-2 pr-3">Aviso</th>
+                  <th class="py-2 pr-3">Paciente</th>
+                  <th class="py-2 pr-3">Procedimento</th>
+                  <th class="py-2 pr-3">Cirurgião</th>
+                  <th class="py-2 pr-3">SO in</th>
+                  <th class="py-2 pr-3">SO out</th>
+                  <th class="py-2 pr-3">Tempo SO</th>
+                  <th class="py-2 pr-3">Anes start</th>
+                  <th class="py-2 pr-3">Anes end</th>
+                  <th class="py-2 pr-3">Tempo Anes</th>
+                  <th class="py-2 pr-3">Cir start</th>
+                  <th class="py-2 pr-3">Cir end</th>
+                  <th class="py-2 pr-3">Tempo Cir</th>
+                  <th class="py-2 pr-3">Transp start</th>
+                  <th class="py-2 pr-3">RPA in</th>
+                  <th class="py-2 pr-3">RPA out</th>
+                  <th class="py-2 pr-3">Tempo RPA</th>
+                  <th class="py-2 pr-3">Total (Transp→RPA.in)</th>
+                  <th class="py-2 pr-3">Total CC (Transp→RPA.out)</th>
+                  <th class="py-2 pr-3">Auto?</th>
+                  <th class="py-2 pr-3">Status</th>
+                </tr>
+              </thead>
+              <tbody id="reportsTable" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW: ROOM DETAIL -->
+      <section id="viewRoomDetail" class="hidden mt-4">
+        <div class="card shadow-sm p-4 text-white border border-slate-200 hero">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <h2 class="text-xl font-black truncate" id="roomTitle">Sala</h2>
+                <span class="chip bg-white/15 text-white border border-white/20" id="roomStatus">—</span>
+              </div>
+
+              <div class="mt-1 text-sm text-white/90 truncate" id="caseLine"></div>
+              <div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/85" id="patientLine"></div>
+
+              <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-white/85">
+                <div class="soft-panel p-2">Aviso: <span class="font-black mono" id="noticeNumber">—</span></div>
+                <div class="soft-panel p-2">Atendimento: <span class="font-black mono" id="attendanceNumber">—</span></div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-2 gap-2">
+                <div class="soft-panel p-2">
+                  <div class="text-xs text-white/80 font-black uppercase tracking-wide">Previsto (cirurgia)</div>
+                  <div class="mt-1 text-sm font-black mono" id="plannedSurgery">—</div>
+                </div>
+                <div class="soft-panel p-2">
+                  <div class="text-xs text-white/80 font-black uppercase tracking-wide">Atraso paciente em SO</div>
+                  <div class="mt-1 text-sm font-black mono" id="delayPatientInOr">—</div>
+                </div>
+                <div class="soft-panel p-2">
+                  <div class="text-xs text-white/80 font-black uppercase tracking-wide">Atraso equipe cirúrgica</div>
+                  <div class="mt-1 text-sm font-black mono" id="delaySurgicalTeam">—</div>
+                </div>
+                <div class="soft-panel p-2">
+                  <div class="text-xs text-white/80 font-black uppercase tracking-wide">Atraso equipe anestesia</div>
+                  <div class="mt-1 text-sm font-black mono" id="delayAnesthesiaTeam">—</div>
+                </div>
+              </div>
+
+              <div id="allergyBanner" class="mt-3 hidden inline-flex items-center gap-2 bg-rose-600/95 border border-rose-300/30 px-3 py-2 rounded-xl">
+                <span class="chip bg-white/15 border border-white/20">ALERGIA</span>
+                <span class="text-sm font-black" id="allergyText"></span>
+              </div>
+            </div>
+
+            <div class="text-right shrink-0">
+              <div class="text-xs font-black text-white/85 mono" id="todayDateTop">--/--/----</div>
+              <div class="text-3xl font-black mono" id="clock">--:--:--</div>
+
+              <div class="mt-2 flex items-center justify-end gap-2">
+                <button id="btnBackToRooms" class="btn bg-white/15 hover:bg-white/20 border border-white/20 px-3 py-2">Voltar</button>
+                <button id="btnDetailsOpen" class="btn bg-white/15 hover:bg-white/20 border border-white/20 px-3 py-2">Detalhes</button>
+              </div>
+
+              <div class="mt-3 flex justify-center">
+                <div class="soft-panel px-4 py-3 text-center min-w-[170px]">
+                  <div class="text-[11px] text-white/80 font-black uppercase tracking-wide">Tempo de SO</div>
+                  <div class="mt-1 text-sm font-black mono" id="orTime">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTIONS -->
+        <section class="mt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide">Ações</h3>
+            <div class="flex items-center gap-2">
+              <button id="btnVoice"      class="btn bg-white border border-slate-200 px-4 py-2 text-slate-800">Modo voz</button>
+              <button id="btnUndoManual" class="btn bg-white border border-slate-200 px-4 py-2 text-slate-800">Desfazer último (manual)</button>
+            </div>
+          </div>
+          <div id="actionsGrid" class="grid grid-cols-2 gap-3"></div>
+          <p class="mt-3 text-xs text-slate-500">Detalhes são opcionais nesta versão.</p>
+        </section>
+
+        <!-- EVENTS -->
+        <section class="card mt-4 bg-white border border-slate-200 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide">Eventos recentes</h3>
+          </div>
+
+          <div class="mt-3">
+            <div class="text-xs font-black text-slate-600 uppercase tracking-wide">Duração das etapas (concluídas)</div>
+            <ul id="durationsList" class="mt-2 space-y-1 text-sm"></ul>
+
+            <div class="mt-2 flex items-center justify-between text-sm font-black border-t border-slate-200 pt-2">
+              <span class="text-slate-700">Total (Transp→RPA.in)</span>
+              <span class="mono text-slate-900" id="timelineTotal">—</span>
+            </div>
+          </div>
+
+          <ul id="recentEvents" class="mt-4 space-y-2 text-sm"></ul>
+          <div id="toast" class="hidden mt-3 text-sm font-bold bg-slate-900 text-white px-3 py-2 rounded-xl"></div>
+        </section>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- DETAILS MODAL -->
+  <div id="detailsModal" class="hidden fixed inset-0 bg-black/40 p-4">
+    <div class="max-w-2xl mx-auto card bg-white border border-slate-200 shadow-lg p-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-2">
+        <div>
+          <div class="text-sm font-black">Detalhes do paciente / caso</div>
+          <div class="text-xs text-slate-500">Preenchimento opcional.</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnSaveDetails"  class="btn bg-blue-600 text-white px-3 py-2">Salvar</button>
+          <button id="btnCloseDetails" class="btn bg-slate-100 border border-slate-200 px-3 py-2">Fechar</button>
+        </div>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-3 text-sm" id="detailsGrid"></div>
+      <div class="mt-4 text-xs text-slate-500">
+        Observação: "Previsto (cirurgia)" usa HH:MM e assume a data de referência (campo "Data do dia").
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
