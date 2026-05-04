@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+api/node_modules/
+
+# Environment — never commit secrets
+.env
+
+# Build artifacts
+dist/
+build/
+
+# Database data volume (local dev)
+data/
+
+# Database backups
+*.sql
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# TLS certificates (generated locally)
+nginx/ssl/*.crt
+nginx/ssl/*.key
+nginx/ssl/*.pem
