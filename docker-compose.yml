@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  # ── Banco de dados PostgreSQL ────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: setupso_db
+      POSTGRES_USER: setupso_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-TROQUE_A_SENHA_DO_BANCO}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U setupso_user -d setupso_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API Node.js ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_CLIENT: pg
+      DATABASE_URL: postgres://setupso_user:${POSTGRES_PASSWORD:-TROQUE_A_SENHA_DO_BANCO}@db:5432/setupso_db
+      JWT_SECRET: ${JWT_SECRET:-TROQUE_ESTE_SEGREDO}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-TROQUE_ANTES_DE_USAR}
+    # A porta da API não é exposta diretamente; o Nginx faz o proxy.
+    expose:
+      - "3000"
+
+  # ── Proxy reverso Nginx (serve o frontend estático + faz proxy para a API) ───
+  proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # O frontend estático (index8.html, app.js) é servido pelo Nginx
+      - ./:/usr/share/nginx/html:ro
+    # Para HTTPS on-prem, montar os certificados aqui:
+    # - ./certs:/etc/nginx/certs:ro
+
+volumes:
+  pgdata:
