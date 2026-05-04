@@ -7,6 +7,7 @@ const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Database = require("better-sqlite3");
+const rateLimit = require("express-rate-limit");
 
 /* ------------------------------------------------------------------ */
 /* Config                                                               */
@@ -16,6 +17,12 @@ const JWT_SECRET = process.env.JWT_SECRET || "setupso-dev-secret-change-in-prod"
 const JWT_EXPIRES = "24h";
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "setupso.db");
 const BCRYPT_ROUNDS = 10;
+
+/* Warn loudly when running with the default secret in production */
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "setupso-dev-secret-change-in-prod") {
+  console.error("ERRO: JWT_SECRET não configurado. Defina a variável de ambiente JWT_SECRET antes de iniciar em produção.");
+  process.exit(1);
+}
 
 /* ------------------------------------------------------------------ */
 /* Database setup                                                       */
@@ -45,8 +52,27 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "4mb" }));
 
-// Serve the static front-end files
-app.use(express.static(__dirname));
+// Serve only the public/ subfolder (not the server source root)
+app.use(express.static(path.join(__dirname, "public")));
+
+/* ------------------------------------------------------------------ */
+/* Rate limiting                                                        */
+/* ------------------------------------------------------------------ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 20,                    // max 20 auth requests per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas tentativas. Tente novamente em alguns minutos." }
+});
+
+const stateLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,   // 1 minute
+  max: 120,                   // 120 state requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Limite de requisições atingido." }
+});
 
 /* ------------------------------------------------------------------ */
 /* Auth middleware                                                      */
@@ -68,14 +94,14 @@ function requireAuth(req, res, next) {
 /* ------------------------------------------------------------------ */
 
 /* POST /api/auth/register */
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", authLimiter, async (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
 
   if (!username || username.length < 3)
     return res.status(400).json({ error: "Username deve ter no mínimo 3 caracteres." });
-  if (!password || password.length < 4)
-    return res.status(400).json({ error: "Senha deve ter no mínimo 4 caracteres." });
+  if (!password || password.length < 8)
+    return res.status(400).json({ error: "Senha deve ter no mínimo 8 caracteres." });
 
   const exists = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
   if (exists) return res.status(409).json({ error: "Usuário já existe." });
@@ -89,7 +115,7 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 /* POST /api/auth/login */
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authLimiter, async (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
 
@@ -108,7 +134,7 @@ app.post("/api/auth/login", async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 /* GET /api/state — return the user's saved state */
-app.get("/api/state", requireAuth, (req, res) => {
+app.get("/api/state", stateLimiter, requireAuth, (req, res) => {
   const row = db.prepare("SELECT data FROM states WHERE user_id = ?").get(req.user.sub);
   if (!row) {
     // Ensure row exists (defensive)
@@ -123,7 +149,7 @@ app.get("/api/state", requireAuth, (req, res) => {
 });
 
 /* PUT /api/state — overwrite the user's state */
-app.put("/api/state", requireAuth, (req, res) => {
+app.put("/api/state", stateLimiter, requireAuth, (req, res) => {
   const data = req.body.state;
   if (data === undefined || data === null)
     return res.status(400).json({ error: "Campo 'state' é obrigatório." });

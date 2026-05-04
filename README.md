@@ -107,9 +107,10 @@ Inclua o header `Authorization: Bearer <token>` em todas as requisições abaixo
 
 ```
 SetupSO/
-├── index.html       # Frontend principal (com login + indicador de save)
-├── index8.html      # Frontend legado (compatível, sem login UI)
-├── app.js           # Lógica front-end (storage, eventos, render, API)
+├── public/
+│   ├── index.html       # Frontend principal (com login + indicador de save)
+│   ├── index8.html      # Frontend legado (sem login UI)
+│   └── app.js           # Lógica front-end (storage, eventos, render, API)
 ├── server.js        # Servidor Node.js (Express + SQLite + JWT)
 ├── package.json
 ├── .env.example
