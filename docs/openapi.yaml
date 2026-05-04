@@ -1,0 +1,908 @@
+openapi: "3.1.0"
+
+info:
+  title: SetupSO API
+  version: "1.0.0"
+  description: |
+    REST API for SetupSO — Surgical-Center Setup Coordination Tool.
+
+    ## Authentication
+    All protected endpoints require a JWT token obtained via `POST /auth/login`.
+    Include it in the request header:
+    ```
+    Authorization: Bearer <token>
+    ```
+
+    ## Multi-tenancy
+    The tenant is resolved automatically from the JWT payload (`tenantId` claim).
+    Clients never need to send a `tenantId` in request bodies.
+
+    ## RBAC
+    - `admin` — full access including user management.
+    - `collaborator` — can register events and update case details.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://api.setupso.example.com
+    description: Cloud production
+
+tags:
+  - name: auth
+    description: Authentication and session management
+  - name: users
+    description: User management (admin only)
+  - name: rooms
+    description: Operating room management
+  - name: cases
+    description: Case (procedure) management
+  - name: events
+    description: Event registration within a case
+  - name: reports
+    description: Aggregated reports and metrics
+
+paths:
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate and receive a JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  example: joana.silva
+                password:
+                  type: string
+                  format: password
+                  example: S3nh@F0rte
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Invalidate the current session (optional)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change the current user's password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "204":
+          description: Password changed
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── Users ────────────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [users]
+      summary: List all users in the current tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: active
+          schema:
+            type: boolean
+          description: Filter by active status
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublic"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      tags: [users]
+      summary: Create a new user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /users/{userId}:
+    patch:
+      tags: [users]
+      summary: Update a user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                role:
+                  type: string
+                  enum: [admin, collaborator]
+                active:
+                  type: boolean
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPublic"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{userId}/reset-password:
+    post:
+      tags: [users]
+      summary: Admin resets a user's password (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "204":
+          description: Password reset; user will be required to change on next login
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Rooms ────────────────────────────────────────────────────────────────────
+
+  /rooms:
+    get:
+      tags: [rooms]
+      summary: List all active rooms in the current tenant
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Room"
+
+    post:
+      tags: [rooms]
+      summary: Create a new room (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: Sala 3
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /rooms/{roomId}:
+    patch:
+      tags: [rooms]
+      summary: Update a room (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                description:
+                  type: string
+                  nullable: true
+                active:
+                  type: boolean
+      responses:
+        "200":
+          description: Room updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [rooms]
+      summary: Deactivate a room (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "204":
+          description: Room deactivated
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rooms/{roomId}/active-case:
+    get:
+      tags: [rooms]
+      summary: Get the currently active case for a room
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          description: Active case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "404":
+          description: No active case for this room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Cases ────────────────────────────────────────────────────────────────────
+
+  /cases:
+    get:
+      tags: [cases]
+      summary: List cases (filterable)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: roomId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, closed]
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+          description: Filter cases created on or after this date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+          description: Filter cases created on or before this date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Paginated list of cases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Case"
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+
+    post:
+      tags: [cases]
+      summary: Create a new case
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseRequest"
+      responses:
+        "201":
+          description: Case created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /cases/{caseId}:
+    get:
+      tags: [cases]
+      summary: Get a specific case
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: Case detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [cases]
+      summary: Update case details or status
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: Partial update to the case data blob
+                  example:
+                    patientName: "M.S."
+                    surgeonName: "Dr. Lima"
+                status:
+                  type: string
+                  enum: [active, closed]
+      responses:
+        "200":
+          description: Case updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Events ───────────────────────────────────────────────────────────────────
+
+  /cases/{caseId}/events:
+    get:
+      tags: [events]
+      summary: List all events for a case
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      responses:
+        "200":
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [events]
+      summary: Register a new event for a case
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CaseId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventRequest"
+      responses:
+        "201":
+          description: Event registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Reports ──────────────────────────────────────────────────────────────────
+
+  /reports/cases:
+    get:
+      tags: [reports]
+      summary: Get cases report with computed durations
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-05-01"
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-05-31"
+        - in: query
+          name: roomId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CasesReport"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+# ── Components ──────────────────────────────────────────────────────────────────
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    CaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds
+          example: 28800
+        user:
+          $ref: "#/components/schemas/UserPublic"
+
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [admin, collaborator]
+        active:
+          type: boolean
+        mustChangePwd:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required: [username, fullName, password, role]
+      properties:
+        username:
+          type: string
+          example: carlos.melo
+        fullName:
+          type: string
+          example: Carlos Melo
+        password:
+          type: string
+          format: password
+          minLength: 8
+        role:
+          type: string
+          enum: [admin, collaborator]
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: Sala 3
+        description:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Case:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          example: SETUP-20260501-001
+        status:
+          type: string
+          enum: [active, closed]
+        data:
+          type: object
+          description: Flexible case details (patient name, surgeon, procedure, etc.)
+          example:
+            patientName: ""
+            surgeonName: ""
+            procedureName: ""
+            scheduledTime: "2026-05-01T08:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+        createdByUserId:
+          type: string
+          format: uuid
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateCaseRequest:
+      type: object
+      required: [roomId]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Auto-generated if omitted
+        data:
+          type: object
+          example:
+            patientName: ""
+            surgeonName: ""
+            procedureName: ""
+            scheduledTime: "2026-05-01T08:00:00Z"
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        caseId:
+          type: string
+          format: uuid
+        eventKey:
+          type: string
+          description: Event type identifier (e.g. "anesthesia_team", "surgical_team")
+          example: anesthesia_team
+        action:
+          type: string
+          enum: [IN, OUT, START, END]
+        happenedAt:
+          type: string
+          format: date-time
+        auto:
+          type: boolean
+          description: True if the event was registered automatically (e.g. derived from another event)
+        createdAt:
+          type: string
+          format: date-time
+        createdByUserId:
+          type: string
+          format: uuid
+
+    CreateEventRequest:
+      type: object
+      required: [eventKey, action, happenedAt]
+      properties:
+        eventKey:
+          type: string
+          example: anesthesia_team
+        action:
+          type: string
+          enum: [IN, OUT, START, END]
+        happenedAt:
+          type: string
+          format: date-time
+        auto:
+          type: boolean
+          default: false
+
+    CasesReport:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totalCases:
+          type: integer
+        cases:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              code:
+                type: string
+              roomCode:
+                type: string
+              status:
+                type: string
+                enum: [active, closed]
+              surgeryTimeMs:
+                type: integer
+                nullable: true
+              anesthesiaTimeMs:
+                type: integer
+                nullable: true
+              rpaTimeMs:
+                type: integer
+                nullable: true
+              closedAt:
+                type: string
+                format: date-time
+                nullable: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+          example: NOT_FOUND
+        message:
+          type: string
+          description: Human-readable description
+          example: Resource not found
+        details:
+          type: object
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: UNAUTHORIZED
+            message: Missing or invalid token
+
+    Forbidden:
+      description: Authenticated but insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: FORBIDDEN
+            message: Admin role required
+
+    NotFound:
+      description: Resource not found (or does not belong to this tenant)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: NOT_FOUND
+            message: Resource not found
+
+    ValidationError:
+      description: Request body validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: VALIDATION_ERROR
+            message: "\"username\" is required"
+
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: CONFLICT
+            message: Username already exists in this tenant
