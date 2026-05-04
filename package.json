@@ -1,0 +1,12 @@
+{
+  "name": "setupso",
+  "version": "1.0.0",
+  "description": "SetupSO — MVP 2: Painel de salas cirúrgicas (offline, localStorage)",
+  "scripts": {
+    "start": "http-server . -p 8080 -o /index.html --cors",
+    "serve": "http-server . -p 8080 -o /index.html --cors"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
