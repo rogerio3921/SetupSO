@@ -1,0 +1,21 @@
+# Dependências
+node_modules/
+npm-debug.log*
+
+# Variáveis de ambiente (NÃO commitar)
+.env
+
+# Build artifacts
+dist/
+*.tgz
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# PostgreSQL data local
+postgres_data/

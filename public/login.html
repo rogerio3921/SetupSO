@@ -1,0 +1,141 @@
+<!doctype html>
+<!--
+  SetupSO — Login
+  MVP online: multi-hospital, auth, DB (PostgreSQL)
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SetupSO — Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; }
+    .hero { background: linear-gradient(135deg, #0b2a4a 0%, #0f3c6e 55%, #134e91 100%); }
+    .card { border-radius: 18px; }
+    .btn { border-radius: 16px; font-weight: 900; }
+    .soft-input {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: .65rem .85rem;
+      font-weight: 700;
+      width: 100%;
+      font-size: .95rem;
+      outline: none;
+    }
+    .soft-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+  </style>
+</head>
+<body class="min-h-screen hero flex items-center justify-center p-4">
+
+  <div class="w-full max-w-sm">
+    <!-- Logo / título -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-black text-white">SetupSO</h1>
+      <p class="mt-1 text-sm text-white/70">Centro Cirúrgico Digital</p>
+    </div>
+
+    <!-- Card de login -->
+    <div class="card bg-white shadow-2xl p-6">
+      <h2 class="text-lg font-black text-slate-900 mb-5">Entrar</h2>
+
+      <div id="loginError" class="hidden mb-4 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2"></div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-black text-slate-600 uppercase tracking-wide mb-1">Hospital (slug)</label>
+          <input id="inpTenantSlug" type="text" class="soft-input" placeholder="ex: hsl ou deixe em branco" autocomplete="organization" />
+          <p class="mt-1 text-xs text-slate-400">Deixe em branco para usar o hospital padrão.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-black text-slate-600 uppercase tracking-wide mb-1">Usuário</label>
+          <input id="inpUsername" type="text" class="soft-input" placeholder="nome de usuário" autocomplete="username" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-black text-slate-600 uppercase tracking-wide mb-1">Senha</label>
+          <input id="inpPassword" type="password" class="soft-input" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <button id="btnLogin" class="btn w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-sm mt-2">
+          Entrar
+        </button>
+      </div>
+
+      <p class="mt-5 text-xs text-slate-400 text-center">
+        SetupSO MVP online · Dados protegidos por login
+      </p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // Se já tem token válido, redireciona direto
+      const token = localStorage.getItem("setupso_token");
+      if (token) {
+        fetch("/api/auth/me", { headers: { Authorization: "Bearer " + token } })
+          .then(function (r) { if (r.ok) window.location.replace("/"); })
+          .catch(function () {});
+      }
+
+      function showError(msg) {
+        var el = document.getElementById("loginError");
+        el.textContent = msg;
+        el.classList.remove("hidden");
+      }
+      function hideError() {
+        document.getElementById("loginError").classList.add("hidden");
+      }
+
+      function doLogin() {
+        hideError();
+        var username = document.getElementById("inpUsername").value.trim();
+        var password = document.getElementById("inpPassword").value;
+        var tenantSlug = document.getElementById("inpTenantSlug").value.trim();
+
+        if (!username || !password) {
+          showError("Preencha usuário e senha.");
+          return;
+        }
+
+        var btn = document.getElementById("btnLogin");
+        btn.disabled = true;
+        btn.textContent = "Entrando…";
+
+        var body = { username: username, password: password };
+        if (tenantSlug) body.tenantSlug = tenantSlug;
+
+        fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              showError(res.data.error || "Erro ao entrar. Tente novamente.");
+              btn.disabled = false;
+              btn.textContent = "Entrar";
+              return;
+            }
+            localStorage.setItem("setupso_token", res.data.token);
+            localStorage.setItem("setupso_user", JSON.stringify(res.data.user));
+            window.location.replace("/");
+          })
+          .catch(function () {
+            showError("Erro de conexão com o servidor.");
+            btn.disabled = false;
+            btn.textContent = "Entrar";
+          });
+      }
+
+      document.getElementById("btnLogin").addEventListener("click", doLogin);
+      document.getElementById("inpPassword").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") doLogin();
+      });
+    })();
+  </script>
+</body>
+</html>
