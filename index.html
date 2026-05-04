@@ -223,10 +223,17 @@
 
         // 3. localStorage available?
         var lsOk = false;
-        try { localStorage.setItem("_hc", "1"); localStorage.removeItem("_hc"); lsOk = true; } catch (e) { lsOk = false; }
+        try {
+          localStorage.setItem("_hc", "1");
+          localStorage.removeItem("_hc");
+          lsOk = true;
+        } catch (e) {
+          lsOk = false;
+        }
         bar.appendChild(hcItem("localStorage", lsOk, lsOk ? "ok" : "indisponível"));
 
-        // 4. Critical elements present
+        // 4. Critical elements present.
+        // Update this list if critical element IDs are added or renamed in index.html.
         var criticalIds = ["roomsGrid", "clockTop", "buildStamp", "dashTvTable", "reportsTable"];
         var missing = criticalIds.filter(function (id) { return !document.getElementById(id); });
         bar.appendChild(hcItem("Elementos críticos", missing.length === 0,

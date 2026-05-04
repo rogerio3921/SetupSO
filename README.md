@@ -81,7 +81,7 @@ SetupSO/
 └── README.md    ← este arquivo
 ```
 
-> O arquivo `index8.html` é uma versão anterior mantida para referência. Use `index.html`.
+> `index8.html` é uma versão anterior que permanece no repositório para referência histórica. Use sempre `index.html` como ponto de entrada.
 
 ---
 
