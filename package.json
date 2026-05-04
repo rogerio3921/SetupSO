@@ -1,0 +1,11 @@
+{
+  "name": "setupso",
+  "version": "2.0.0",
+  "description": "SetupSO MVP 2 — Painel offline para controle operacional do Centro Cirúrgico",
+  "private": true,
+  "scripts": {
+    "serve": "npx serve . --listen 3000"
+  },
+  "keywords": ["centro-cirurgico", "offline", "kpi", "localStorage"],
+  "license": "MIT"
+}
