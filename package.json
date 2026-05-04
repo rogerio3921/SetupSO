@@ -1,0 +1,10 @@
+{
+  "name": "setupso-mvp2",
+  "version": "2.0.0",
+  "description": "SetupSO MVP 2 — rastreamento de eventos de sala cirúrgica (100% local, sem backend)",
+  "scripts": {
+    "serve": "npx serve ."
+  },
+  "keywords": ["surgical", "or-management", "offline"],
+  "license": "MIT"
+}
