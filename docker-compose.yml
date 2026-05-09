@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  # MySQL Database - Port 3308 (external)
+  db:
+    image: mysql:8.0
+    container_name: setupso-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: setupso
+      MYSQL_USER: setupso
+      MYSQL_PASSWORD: setupso123
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - setupso-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Backend API - Port 4008 (external)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: setupso-backend
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: mysql://setupso:setupso123@db:3306/setupso
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRY: 7d
+      CORS_ORIGIN: http://localhost:3008
+    ports:
+      - "4008:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    networks:
+      - setupso-network
+    command: npm run dev
+
+  # Frontend React - Port 3008 (external)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: setupso-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:4008/api
+    ports:
+      - "3008:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    networks:
+      - setupso-network
+
+volumes:
+  mysql_data:
+
+networks:
+  setupso-network:
+    driver: bridge

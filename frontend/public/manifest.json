@@ -1,0 +1,85 @@
+{
+  "name": "SetupSO - Tempos e Movimentos",
+  "short_name": "SetupSO",
+  "description": "Sistema de Gestão de Tempos e Movimentos em Centro Cirúrgico",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1b5e75",
+  "icons": [
+    {
+      "src": "/logo/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logo/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["healthcare", "productivity"],
+  "screenshots": [
+    {
+      "src": "/logo/screenshot-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/logo/screenshot-2.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ir para o Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/logo/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Cadastros",
+      "short_name": "Cadastros",
+      "description": "Ir para os Cadastros",
+      "url": "/cadastros",
+      "icons": [{ "src": "/logo/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Salas",
+      "short_name": "Salas",
+      "description": "Ir para as Salas Cirúrgicas",
+      "url": "/salas",
+      "icons": [{ "src": "/logo/icon-96.png", "sizes": "96x96" }]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

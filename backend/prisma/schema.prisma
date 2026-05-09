@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  fullName      String
+  badgeNumber   String   @unique
+  corenNumber   String?
+  department    String
+  function      String   // Auxiliar, Técnico, Enfermeiro
+  role          String   // Admin, User
+  password      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events        Event[]
+}
+
+model Room {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  name          String
+  capacity      Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  cases         Case[]
+}
+
+model Case {
+  id                      String   @id @default(cuid())
+  room              Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId            String
+  code              String
+  status            String   @default("active") // active, closed
+  
+  // Patient info
+  patientFullName   String?
+  noticeNumber      String?
+  procedureName     String?
+  surgeonName       String?
+  attendanceNumber  String?
+  birthDate         String?
+  allergies         String?
+  weightKg          String?
+  heightCm          String?
+  
+  // Timing
+  plannedSurgeryTime String?
+  referenceDate     String?
+  patientPhase      String   @default("open") // open, closed
+  roomPhase         String   @default("open") // open, closed
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  events            Event[]
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId      String
+  user        User?    @relation(fields: [userId], references: [id])
+  userId      String?
+  eventKey    String   // anesthesia_team, surgical_team, etc.
+  action      String   // start, end, in, out
+  happenedAt  DateTime
+  createdAt   DateTime @default(now())
+  auto        Boolean  @default(false)
+  
+  @@index([caseId])
+  @@index([userId])
+}
+
+model StatusLegend {
+  id        String   @id @default(cuid())
+  status    String   @unique
+  color     String
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CardConfig {
+  id        String   @id @default(cuid())
+  fieldName String
+  label     String
+  visible   Boolean  @default(true)
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
