@@ -1,6 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { generateToken, hashPassword, comparePasswords, AuthPayload } from './auth';
+import { generateToken, hashPassword, comparePasswords, AuthPayload } from '../auth';
 
 const router = express.Router();
 const prisma = new PrismaClient();

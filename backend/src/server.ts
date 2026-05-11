@@ -138,7 +138,7 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
     });
     res.json(events);
   } catch (error) {
-    res.status(500).jsouthMiddleware, roleMiddleware(['Admin']), an({ error: 'Failed to fetch events' });
+    res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
 
