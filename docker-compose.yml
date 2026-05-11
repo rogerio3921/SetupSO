@@ -51,6 +51,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: http://181.232.129.84:4008/api
     container_name: setupso-frontend
     environment:
       REACT_APP_API_URL: http://181.232.129.84:4008/api
