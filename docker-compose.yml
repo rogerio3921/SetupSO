@@ -11,7 +11,7 @@ services:
       MYSQL_USER: setupso
       MYSQL_PASSWORD: setupso123
     ports:
-      - "3308:3306"
+      - "3310:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
