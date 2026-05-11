@@ -32,6 +32,7 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'salas', label: 'Salas Cirúrgicas', icon: LayoutIcon, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'setup-sala', label: 'Setup Sala', icon: Clock, role: ['Admin', 'User', 'Master', 'Usuário'] },
+    { id: 'pacientes', label: 'Pacientes', icon: Users, role: ['Admin', 'Master'] },
     { id: 'cadastros', label: 'Cadastros', icon: ClipboardList, role: ['Admin', 'Master'] },
     { id: 'usuarios', label: 'Usuários', icon: Users, role: ['Admin', 'Master'] },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3, role: ['Admin', 'Master'] },
@@ -114,7 +115,13 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
 
         {/* Footer Menu */}
         <div className="p-4 border-t border-blue-700 space-y-2">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-blue-100 hover:bg-blue-700/50 transition-all">
+          <button
+            onClick={() => {
+              onPageChange('setup-sala');
+              closeSidebarOnMobile();
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-blue-100 hover:bg-blue-700/50 transition-all"
+          >
             <Settings size={20} />
             <span>Configurações</span>
           </button>

@@ -36,6 +36,18 @@ interface RoomSetup extends Room {
   scheduledStart?: string;
   isDelayed?: boolean;
   delayReason?: string;
+  procedureName?: string;
+  surgeonName?: string;
+  caseId?: string;
+}
+
+type TimelineActionKey = 'start' | 'end' | 'in' | 'out';
+
+interface TimelineStage {
+  key: string;
+  label: string;
+  kind: 'start_end' | 'in_out';
+  actions: Array<{ label: string; action: TimelineActionKey }>;
 }
 
 export default function SetupSala() {
@@ -46,6 +58,8 @@ export default function SetupSala() {
   const [delayReason, setDelayReason] = useState('');
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [openingRoomId, setOpeningRoomId] = useState<string | null>(null);
+  const [caseEvents, setCaseEvents] = useState<any[]>([]);
 
   const delayReasons = [
     'Atraso no transporte',
@@ -73,25 +87,187 @@ export default function SetupSala() {
     fetchRooms();
   }, []);
 
+  useEffect(() => {
+    const activeRoom = rooms.find((room) => room.id === selectedRoom);
+    if (!activeRoom?.caseId) {
+      setCaseEvents([]);
+      return;
+    }
+
+    fetchCaseEvents(activeRoom.caseId);
+  }, [rooms, selectedRoom]);
+
   const fetchRooms = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/rooms`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const headers = { Authorization: `Bearer ${token}` };
+      const [roomsResponse, casesResponse, patientsResponse] = await Promise.all([
+        axios.get(`${API_URL}/rooms`, { headers }),
+        axios.get(`${API_URL}/cases`, { headers }),
+        axios.get(`${API_URL}/patients`, { headers })
+      ]);
+
+      const scheduledPatients = Array.isArray(patientsResponse.data)
+        ? patientsResponse.data.filter((patient: any) => patient.roomId && patient.status === 'scheduled')
+        : [];
+
+      const activeCasesByRoom = new Map<string, any>();
+      casesResponse.data
+        .filter((item: any) => item.status === 'active')
+        .forEach((item: any) => activeCasesByRoom.set(item.roomId, item));
+
+      const roomsNeedingSync = roomsResponse.data.filter((room: Room) => {
+        const hasActiveCase = activeCasesByRoom.has(room.id);
+        const hasScheduledPatient = scheduledPatients.some((patient: any) => patient.roomId === room.id);
+        return !hasActiveCase && hasScheduledPatient;
       });
-      // Mock data with setup times
-      const roomsWithSetup: RoomSetup[] = response.data.map((room: Room) => ({
-        ...room,
-        patientName: 'José Carlos',
-        scheduledStart: '08:00',
-        times: {}
-      }));
+
+      if (roomsNeedingSync.length > 0) {
+        const syncedCases = await Promise.all(
+          roomsNeedingSync.map(async (room: Room) => {
+            const response = await axios.get(`${API_URL}/rooms/${room.id}/case`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            return response.data;
+          })
+        );
+
+        syncedCases.forEach((item) => {
+          if (item?.roomId) {
+            activeCasesByRoom.set(item.roomId, item);
+          }
+        });
+      }
+
+      const roomsWithSetup: RoomSetup[] = roomsResponse.data.map((room: Room) => {
+        const activeCase = activeCasesByRoom.get(room.id);
+
+        return {
+          ...room,
+          caseId: activeCase?.id,
+          patientName: activeCase?.patientFullName || 'Não informado',
+          procedureName: activeCase?.procedureName || 'Procedimento não informado',
+          surgeonName: activeCase?.surgeonName || 'Cirurgião não informado',
+          scheduledStart: activeCase?.plannedSurgeryTime || '—',
+          delayReason: activeCase?.delayReason || undefined,
+          times: {}
+        };
+      });
       setRooms(roomsWithSetup);
+
+      const roomToOpen = localStorage.getItem('setupRoomId');
+      if (roomToOpen) {
+        setSelectedRoom(roomToOpen);
+        localStorage.removeItem('setupRoomId');
+      }
+
       setLoading(false);
     } catch (error) {
       console.error('Erro ao buscar salas:', error);
       setLoading(false);
     }
+  };
+
+  const handleOpenRoomCase = async (roomId: string) => {
+    try {
+      setOpeningRoomId(roomId);
+      const token = localStorage.getItem('token');
+      await axios.get(`${API_URL}/rooms/${roomId}/case`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await fetchRooms();
+      setSelectedRoom(roomId);
+    } catch (error) {
+      console.error('Erro ao abrir caso da sala:', error);
+    } finally {
+      setOpeningRoomId(null);
+    }
+  };
+
+  const fetchCaseEvents = async (caseId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/cases/${caseId}/events`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCaseEvents(response.data || []);
+    } catch (error) {
+      console.error('Erro ao buscar eventos da sala:', error);
+    }
+  };
+
+  const recordEvent = async (caseId: string, eventKey: string, action: 'start' | 'end' | 'in' | 'out') => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API_URL}/events`,
+        { caseId, eventKey, action },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      await fetchRooms();
+
+      const active = rooms.find((room) => room.id === selectedRoom);
+      if (active?.caseId) {
+        await fetchCaseEvents(active.caseId);
+      }
+    } catch (error) {
+      console.error('Erro ao registrar evento:', error);
+    }
+  };
+
+  const timelineStages: TimelineStage[] = [
+    { key: 'transport_patient', label: 'Transporte do paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { key: 'surgery', label: 'Cirurgia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { key: 'rpa', label: 'RPA', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { key: 'anesthesia_team', label: 'Equipe anestesia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+  ];
+
+  const getStageEvents = (caseId: string | undefined, stageKey: string) => {
+    if (!caseId) return [];
+    return caseEvents
+      .filter((event) => event.caseId === caseId && event.eventKey === stageKey)
+      .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
+  };
+
+  const formatEventTime = (value?: string) => {
+    if (!value) return '—';
+    return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const getStageStatus = (stage: TimelineStage, events: any[]) => {
+    const startEvent = events.find((event) => event.action === (stage.kind === 'start_end' ? 'start' : 'in'));
+    const endEvent = events.find((event) => event.action === (stage.kind === 'start_end' ? 'end' : 'out'));
+
+    if (startEvent && endEvent) return 'done';
+    if (startEvent && !endEvent) return 'active';
+    return 'pending';
+  };
+
+  const getStageButtonDisabled = (stage: TimelineStage, events: any[], action: TimelineActionKey) => {
+    const startAction = stage.kind === 'start_end' ? 'start' : 'in';
+    const endAction = stage.kind === 'start_end' ? 'end' : 'out';
+    if (action === startAction) {
+      return Boolean(events.find((event) => event.action === startAction));
+    }
+    return !events.find((event) => event.action === startAction) || Boolean(events.find((event) => event.action === endAction));
+  };
+
+  const stageBadgeClass = (status: 'done' | 'active' | 'pending') => {
+    if (status === 'done') return 'bg-green-100 text-green-700';
+    if (status === 'active') return 'bg-amber-100 text-amber-700';
+    return 'bg-slate-100 text-slate-600';
+  };
+
+  const stageBorderClass = (status: 'done' | 'active' | 'pending') => {
+    if (status === 'done') return 'border-green-300 bg-green-50';
+    if (status === 'active') return 'border-amber-300 bg-amber-50';
+    return 'border-slate-200 bg-white';
   };
 
   const calculateDelay = (room: RoomSetup): { isDelayed: boolean; minutes: number } => {
@@ -153,23 +329,39 @@ export default function SetupSala() {
   };
 
   const handleDelaySubmit = () => {
-    if (selectedRoom) {
-      const room = rooms.find(r => r.id === selectedRoom);
-      if (room) {
-        setRooms(rooms.map(r => 
-          r.id === selectedRoom 
-            ? { ...r, delayReason } 
-            : r
-        ));
-      }
+    const room = rooms.find((item) => item.id === selectedRoom);
+
+    if (!room?.caseId) {
+      setShowDelayPopup(false);
+      setDelayReason('');
+      return;
     }
-    setShowDelayPopup(false);
-    setDelayReason('');
+
+    const token = localStorage.getItem('token');
+    axios.patch(
+      `${API_URL}/cases/${room.caseId}`,
+      { delayReason },
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then(() => {
+        setRooms((current) => current.map((item) => (
+          item.id === selectedRoom ? { ...item, delayReason } : item
+        )));
+      })
+      .catch((error) => {
+        console.error('Erro ao salvar justificativa do atraso:', error);
+      })
+      .finally(() => {
+        setShowDelayPopup(false);
+        setDelayReason('');
+      });
   };
 
   if (loading) return <div className="text-center py-12">Carregando...</div>;
 
   const activeRoom = rooms.find(r => r.id === selectedRoom);
+
+  const selectedRoomCaseEvents = activeRoom?.caseId ? caseEvents.filter((event) => event.caseId === activeRoom.caseId) : [];
 
   return (
     <div className="space-y-6">
@@ -203,6 +395,9 @@ export default function SetupSala() {
                   <strong>Paciente:</strong> {room.patientName || 'Não informado'}
                 </p>
                 <p className="text-xs text-slate-600">
+                  <strong>Procedimento:</strong> {room.procedureName || '—'}
+                </p>
+                <p className="text-xs text-slate-600">
                   <strong>Hora Prevista:</strong> {room.scheduledStart || '—'}
                 </p>
                 <div className={`mt-2 px-2 py-1 rounded text-xs font-bold ${
@@ -211,6 +406,17 @@ export default function SetupSala() {
                   {getStatusText(room)}
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenRoomCase(room.id);
+                }}
+                className="mt-3 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg"
+              >
+                {openingRoomId === room.id ? 'Abrindo...' : 'Abrir caso da sala'}
+              </button>
 
               {isDelayed && (
                 <div className="mt-2 flex items-center gap-1 text-red-600 text-xs font-bold">
@@ -238,6 +444,29 @@ export default function SetupSala() {
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={() => handleOpenRoomCase(activeRoom.id)}
+            className="mb-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all"
+          >
+            {openingRoomId === activeRoom.id ? 'Sincronizando...' : 'Abrir / sincronizar caso ativo'}
+          </button>
+
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <p className="text-xs text-slate-500">PACIENTE</p>
+              <p className="font-bold text-slate-900">{activeRoom.patientName || 'Não informado'}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <p className="text-xs text-slate-500">PROCEDIMENTO</p>
+              <p className="font-bold text-slate-900">{activeRoom.procedureName || '—'}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <p className="text-xs text-slate-500">CIRURGIÃO</p>
+              <p className="font-bold text-slate-900">{activeRoom.surgeonName || '—'}</p>
+            </div>
+          </div>
+
           {/* Status Alert */}
           {calculateDelay(activeRoom).isDelayed && (
             <div className="mb-4 bg-red-100 border-l-4 border-red-500 p-3 rounded">
@@ -247,6 +476,110 @@ export default function SetupSala() {
               </p>
             </div>
           )}
+
+          <div className="mb-6 bg-slate-50 rounded-lg border border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm font-black text-slate-900">Linha do tempo da execução</p>
+                <p className="text-xs text-slate-500">Cada etapa mostra o estado atual e o próximo registro esperado.</p>
+              </div>
+              <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                {selectedRoomCaseEvents.length} eventos
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {timelineStages.map((stage, index) => {
+                const stageEvents = getStageEvents(activeRoom.caseId, stage.key);
+                const status = getStageStatus(stage, stageEvents);
+                const startEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'start' : 'in'));
+                const endEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'end' : 'out'));
+
+                return (
+                  <div key={stage.key} className={`relative rounded-xl border p-4 ${stageBorderClass(status)}`}>
+                    {index < timelineStages.length - 1 && (
+                      <div className="absolute left-6 top-12 bottom-0 w-px bg-slate-200" />
+                    )}
+
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between relative z-10">
+                      <div className="flex items-start gap-3">
+                        <div className={`mt-1 h-4 w-4 rounded-full border-2 ${status === 'done' ? 'bg-green-500 border-green-500' : status === 'active' ? 'bg-amber-500 border-amber-500' : 'bg-white border-slate-300'}`} />
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-black text-slate-900">{stage.label}</p>
+                            <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${stageBadgeClass(status)}`}>
+                              {status === 'done' ? 'Concluída' : status === 'active' ? 'Em andamento' : 'Pendente'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Início: {formatEventTime(startEvent?.happenedAt)}
+                            {stage.kind === 'start_end' ? ` • Fim: ${formatEventTime(endEvent?.happenedAt)}` : ` • Saída: ${formatEventTime(endEvent?.happenedAt)}`}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {stage.actions.map((action) => {
+                          const disabled = !activeRoom.caseId || getStageButtonDisabled(stage, stageEvents, action.action);
+                          const isPrimary = action.action === (stage.kind === 'start_end' ? 'start' : 'in');
+                          return (
+                            <button
+                              key={`${stage.key}-${action.action}`}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => activeRoom.caseId && recordEvent(activeRoom.caseId, stage.key, action.action)}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                disabled
+                                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                  : isPrimary
+                                    ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500 hover:bg-slate-50'
+                              }`}
+                            >
+                              {stageEvents.some((event) => event.action === action.action) ? `✓ ${action.label}` : action.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {stageEvents.length > 0 && (
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                        {stageEvents.map((event) => (
+                          <div key={event.id} className="flex items-center justify-between rounded-lg bg-white/80 border border-slate-200 px-3 py-2">
+                            <span className="font-bold text-slate-700">{event.action}</span>
+                            <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 bg-white rounded-lg border border-slate-200 p-3">
+              <p className="text-xs font-bold text-slate-500 mb-2">Resumo da sala</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded bg-slate-50 p-2">
+                  <span className="block text-slate-500">Paciente</span>
+                  <span className="font-bold text-slate-900">{activeRoom.patientName || '—'}</span>
+                </div>
+                <div className="rounded bg-slate-50 p-2">
+                  <span className="block text-slate-500">Procedimento</span>
+                  <span className="font-bold text-slate-900">{activeRoom.procedureName || '—'}</span>
+                </div>
+                <div className="rounded bg-slate-50 p-2">
+                  <span className="block text-slate-500">Cirurgião</span>
+                  <span className="font-bold text-slate-900">{activeRoom.surgeonName || '—'}</span>
+                </div>
+                <div className="rounded bg-slate-50 p-2">
+                  <span className="block text-slate-500">Previsto</span>
+                  <span className="font-bold text-slate-900">{activeRoom.scheduledStart || '—'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Campos de Tempo */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -7,6 +7,7 @@ import UsersCRUD from './components/UsersCRUD';
 import SetupSala from './components/SetupSala';
 import SalasCirurgicas from './components/SalasCirurgicas';
 import Reports from './components/Reports';
+import Pacientes from './components/Pacientes';
 import './App.css';
 
 interface User {
@@ -16,7 +17,7 @@ interface User {
   role: string;
 }
 
-type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios';
+type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes';
 
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -57,7 +58,10 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onOpenSetupSala={(roomId) => {
+          localStorage.setItem('setupRoomId', roomId);
+          setCurrentPage('setup-sala');
+        }} />;
       case 'setup-sala':
         return <SetupSala />;
       case 'cadastros':
@@ -66,6 +70,8 @@ function App() {
         return <UsersCRUD />;
       case 'salas':
         return <SalasCirurgicas />;
+      case 'pacientes':
+        return <Pacientes />;
       case 'relatorios':
         return <Reports />;
       default:

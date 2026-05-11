@@ -33,6 +33,54 @@ model Room {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   cases         Case[]
+  patients      Patient[]
+  schedules     SurgerySchedule[]
+}
+
+model Patient {
+  id                    String   @id @default(cuid())
+  fullName              String
+  noticeNumber          String?
+  attendanceNumber      String?
+  birthDate             String?
+  allergies             String?
+  procedureName         String?
+  surgeonName           String?
+  plannedSurgeryTime    String?
+  estimatedMinutes      Int?
+  status                String   @default("waiting")
+  roomId                String?
+  room                  Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  schedules             SurgerySchedule[]
+}
+
+model ProcedureTiming {
+  id                String   @id @default(cuid())
+  procedureName     String   @unique
+  estimatedMinutes  Int
+  prepMinutes       Int      @default(0)
+  cleanMinutes      Int      @default(0)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SurgerySchedule {
+  id                String   @id @default(cuid())
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patientId         String
+  room              Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId            String
+  procedureName     String
+  scheduledStart    DateTime
+  scheduledEnd      DateTime
+  estimatedMinutes  Int
+  status            String   @default("scheduled")
+  source            String?  // manual, import, auto-plan
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model Case {
@@ -55,6 +103,7 @@ model Case {
   
   // Timing
   plannedSurgeryTime String?
+  delayReason       String?
   referenceDate     String?
   patientPhase      String   @default("open") // open, closed
   roomPhase         String   @default("open") // open, closed
