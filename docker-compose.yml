@@ -34,7 +34,7 @@ services:
       DATABASE_URL: mysql://setupso:setupso123@db:3306/setupso
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_EXPIRY: 7d
-      CORS_ORIGIN: http://localhost:3008
+      CORS_ORIGIN: http://181.232.129.84:3008
     ports:
       - "4008:4000"
     depends_on:
@@ -53,7 +53,7 @@ services:
       dockerfile: Dockerfile
     container_name: setupso-frontend
     environment:
-      REACT_APP_API_URL: http://localhost:4008/api
+      REACT_APP_API_URL: http://181.232.129.84:4008/api
     ports:
       - "3008:3000"
     depends_on:
