@@ -11,12 +11,12 @@ interface LayoutProps {
 
 export default function Layout({ user, onLogout, children, currentPage, onPageChange }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Close mobile menu on page change
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [currentPage]);
+  const closeSidebarOnMobile = () => {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setSidebarOpen(false);
+    }
+  };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'User', 'Master', 'Usuário'] },
@@ -78,7 +78,10 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
             return (
               <button
                 key={item.id}
-                onClick={() => onPageChange(item.id)}
+                onClick={() => {
+                  onPageChange(item.id);
+                  closeSidebarOnMobile();
+                }}
                 className={`
                   w-full flex items-center gap-3 px-4 py-3 rounded-lg
                   transition-all duration-200
@@ -102,7 +105,10 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
             <span>Configurações</span>
           </button>
           <button
-            onClick={onLogout}
+            onClick={() => {
+              onLogout();
+              closeSidebarOnMobile();
+            }}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-200 hover:bg-red-600 transition-all"
           >
             <LogOut size={20} />
