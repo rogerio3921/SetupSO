@@ -58,9 +58,6 @@ services:
       - "3008:3000"
     depends_on:
       - backend
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
     networks:
       - setupso-network
 

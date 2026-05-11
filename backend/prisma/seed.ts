@@ -1,8 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { hashPassword } from '../src/auth';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const adminPassword = await hashPassword('Admin@1234');
+  const userPassword = await hashPassword('User@1234');
+
   // Create default rooms
   await prisma.room.createMany({
     data: [
@@ -12,6 +16,53 @@ async function main() {
       { code: 'Sala 4', name: 'Sala de Cirurgia 4', capacity: 1 }
     ],
     skipDuplicates: true
+  });
+
+  // Create test users for role validation
+  await prisma.user.upsert({
+    where: { email: 'admin@setupso.com' },
+    update: {
+      fullName: 'Admin SetupSO',
+      badgeNumber: 'ADM001',
+      corenNumber: 'COREN-ADM-001',
+      department: 'Administração',
+      function: 'Enfermeiro',
+      role: 'Admin',
+      password: adminPassword,
+    },
+    create: {
+      email: 'admin@setupso.com',
+      fullName: 'Admin SetupSO',
+      badgeNumber: 'ADM001',
+      corenNumber: 'COREN-ADM-001',
+      department: 'Administração',
+      function: 'Enfermeiro',
+      role: 'Admin',
+      password: adminPassword,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'user@setupso.com' },
+    update: {
+      fullName: 'Usuário Teste',
+      badgeNumber: 'USR001',
+      corenNumber: 'COREN-USR-001',
+      department: 'Centro Cirúrgico',
+      function: 'Técnico',
+      role: 'User',
+      password: userPassword,
+    },
+    create: {
+      email: 'user@setupso.com',
+      fullName: 'Usuário Teste',
+      badgeNumber: 'USR001',
+      corenNumber: 'COREN-USR-001',
+      department: 'Centro Cirúrgico',
+      function: 'Técnico',
+      role: 'User',
+      password: userPassword,
+    },
   });
 
   // Create default status legends
@@ -47,6 +98,8 @@ async function main() {
   });
 
   console.log('Database seeded successfully!');
+  console.log('Admin test login: admin@setupso.com / Admin@1234');
+  console.log('User test login: user@setupso.com / User@1234');
 }
 
 main()
