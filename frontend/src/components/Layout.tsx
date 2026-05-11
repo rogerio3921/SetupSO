@@ -18,6 +18,16 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     }
   };
 
+  // Initialize sidebar visibility: closed on small screens, open on desktop
+  useEffect(() => {
+    try {
+      const isMobile = window.matchMedia('(max-width: 767px)').matches;
+      setSidebarOpen(!isMobile);
+    } catch (e) {
+      // ignore (safe fallback)
+    }
+  }, []);
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'salas', label: 'Salas Cirúrgicas', icon: LayoutIcon, role: ['Admin', 'User', 'Master', 'Usuário'] },
@@ -39,14 +49,18 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
       <aside className={`
-        ${sidebarOpen ? 'w-64' : 'w-0'} 
+        w-64
         md:w-64 md:flex flex-col
-        bg-gradient-to-b from-blue-900 to-blue-800 
-        text-white 
-        transition-all duration-300 ease-in-out
+        bg-gradient-to-b from-blue-900 to-blue-800
+        text-white
+        transform
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
         fixed md:static
         h-full z-20
         shadow-xl
+        overflow-hidden
       `}>
         {/* Logo */}
         <div className="p-6 border-b border-blue-700">

@@ -5,6 +5,8 @@ import Dashboard from './components/Dashboard';
 import StatusLegendCRUD from './components/StatusLegendCRUD';
 import UsersCRUD from './components/UsersCRUD';
 import SetupSala from './components/SetupSala';
+import SalasCirurgicas from './components/SalasCirurgicas';
+import Reports from './components/Reports';
 import './App.css';
 
 interface User {
@@ -63,19 +65,9 @@ function App() {
       case 'usuarios':
         return <UsersCRUD />;
       case 'salas':
-        return (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-black">Salas Cirúrgicas</h1>
-            <p className="text-slate-600">Módulo em desenvolvimento...</p>
-          </div>
-        );
+        return <SalasCirurgicas />;
       case 'relatorios':
-        return (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-black">Relatórios</h1>
-            <p className="text-slate-600">Módulo em desenvolvimento...</p>
-          </div>
-        );
+        return <Reports />;
       default:
         return <Dashboard />;
     }
