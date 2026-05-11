@@ -14,71 +14,44 @@ interface User {
   role: string;
 }
 
+type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios';
+
 function App() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [user, setUser] = useState<User | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [cases, setCases] = useState<Case[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-
-  // Parse user from localStorage
-  useEffect(() => {
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
+  const [user, setUser] = useState<User | null>(() => {
     const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (err) {
-        console.error('Failed to parse user:', err);
-      }
+    if (!storedUser) {
+      return null;
     }
-  }, []);
 
-localStorage.removeItem('user');
+    try {
+      return JSON.parse(storedUser) as User;
+    } catch {
+      return null;
+    }
+  });
+  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+
+  useEffect(() => {
+    if (!token) {
+      setUser(null);
+    }
+  }, [token]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setCurrentPage('dashboard');
   };
 
   const handleLoginSuccess = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
+    setCurrentPage('dashboard');
   };
 
-  if (!token) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  if (loading) return <div className="text-center p-8">Carregando...</div>;
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-black">SetupSO</h1>
-            <p className="text-blue-100 mt-1">Sistema de Gestão de Tempos e Movimentos</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-bold">{user?.fullName}</p>
-            <p className="text-xs text-blue-200">{user?.role}</p>
-            <button
-              onClick={handleLogout}
-              className="mt-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded font-bold text-sm"
-            >
-              Sair
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
-  // Render current page based on selection
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
@@ -90,20 +63,38 @@ localStorage.removeItem('user');
       case 'usuarios':
         return <UsersCRUD />;
       case 'salas':
-        return <div className="space-y-6"><h1 className="text-3xl font-black">Salas Cirúrgicas</h1><p className="text-slate-600">Módulo em desenvolvimento...</p></div>;
+        return (
+          <div className="space-y-6">
+            <h1 className="text-3xl font-black">Salas Cirúrgicas</h1>
+            <p className="text-slate-600">Módulo em desenvolvimento...</p>
+          </div>
+        );
       case 'relatorios':
-        return <div className="space-y-6"><h1 className="text-3xl font-black">Relatórios</h1><p className="text-slate-600">Módulo em desenvolvimento...</p></div>;
+        return (
+          <div className="space-y-6">
+            <h1 className="text-3xl font-black">Relatórios</h1>
+            <p className="text-slate-600">Módulo em desenvolvimento...</p>
+          </div>
+        );
       default:
         return <Dashboard />;
     }
   };
 
+  if (!token) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <Layout 
-      user={user} 
+    <Layout
+      user={user}
       onLogout={handleLogout}
       currentPage={currentPage}
-      onPageChange={setCurrentPage}
+      onPageChange={(page) => setCurrentPage(page as PageId)}
     >
       {renderPage()}
-    </Layout
+    </Layout>
+  );
+}
+
+export default App;
