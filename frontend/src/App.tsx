@@ -8,6 +8,7 @@ import SetupSala from './components/SetupSala';
 import SalasCirurgicas from './components/SalasCirurgicas';
 import Reports from './components/Reports';
 import Pacientes from './components/Pacientes';
+import Scheduling from './components/Scheduling';
 import './App.css';
 
 interface User {
@@ -17,7 +18,7 @@ interface User {
   role: string;
 }
 
-type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes';
+type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes' | 'schedules';
 
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -72,6 +73,8 @@ function App() {
         return <SalasCirurgicas />;
       case 'pacientes':
         return <Pacientes />;
+      case 'schedules':
+        return <Scheduling />;
       case 'relatorios':
         return <Reports />;
       default:

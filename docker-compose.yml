@@ -44,7 +44,7 @@ services:
       - ./backend/src:/app/src
     networks:
       - setupso-network
-    command: npm run dev
+    command: sh -c "npm run db:sync && npm run dev"
 
   # Frontend React - Port 3008 (external)
   frontend:

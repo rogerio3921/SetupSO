@@ -52,6 +52,20 @@ app.post('/api/rooms', async (req, res) => {
   }
 });
 
+app.patch('/api/rooms/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { code, name, capacity } = req.body;
+    const room = await prisma.room.update({
+      where: { id: roomId },
+      data: { code, name, capacity }
+    });
+    res.json(room);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update room' });
+  }
+});
+
 // Cases routes
 app.get('/api/cases', async (req, res) => {
   try {

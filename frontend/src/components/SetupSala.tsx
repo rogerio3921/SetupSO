@@ -53,6 +53,7 @@ interface TimelineStage {
 
 export default function SetupSala() {
   const [rooms, setRooms] = useState<RoomSetup[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [showDelayPopup, setShowDelayPopup] = useState(false);
@@ -61,6 +62,10 @@ export default function SetupSala() {
   const [editValue, setEditValue] = useState('');
   const [openingRoomId, setOpeningRoomId] = useState<string | null>(null);
   const [caseEvents, setCaseEvents] = useState<any[]>([]);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [schedulePatientId, setSchedulePatientId] = useState<string | null>(null);
+  const [scheduleTime, setScheduleTime] = useState('07:00');
 
   const delayReasons = [
     'Atraso no transporte',
@@ -155,6 +160,7 @@ export default function SetupSala() {
         };
       });
       setRooms(roomsWithSetup);
+      setPatients(Array.isArray(patientsResponse.data) ? patientsResponse.data : []);
 
       const roomToOpen = localStorage.getItem('setupRoomId');
       if (roomToOpen) {
@@ -182,6 +188,59 @@ export default function SetupSala() {
       console.error('Erro ao abrir caso da sala:', error);
     } finally {
       setOpeningRoomId(null);
+    }
+  };
+
+  const handleEditRoom = async (room: Room) => {
+    setEditingRoom(room);
+    setEditValue(room.name || '');
+  };
+
+  const submitEditRoom = async () => {
+    if (!editingRoom) return;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.patch(`${API_URL}/rooms/${editingRoom.id}`, { name: editValue }, { headers });
+      setRooms((current) => current.map((r) => r.id === response.data.id ? { ...r, name: response.data.name } : r));
+      setEditingRoom(null);
+      setEditValue('');
+    } catch (error) {
+      console.error('Erro ao editar sala:', error);
+    }
+  };
+
+  const handleCloseCase = async (room: RoomSetup) => {
+    if (!room.caseId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.patch(`${API_URL}/cases/${room.caseId}`, { status: 'closed', roomPhase: 'closed', patientPhase: 'closed' }, { headers });
+      await fetchRooms();
+      setSelectedRoom(null);
+    } catch (error) {
+      console.error('Erro ao concluir caso:', error);
+    }
+  };
+
+  const openScheduleModal = (roomId?: string) => {
+    setShowScheduleModal(true);
+    if (roomId) {
+      // pre-select any patient assigned to this room if present
+    }
+  };
+
+  const submitSchedule = async () => {
+    if (!schedulePatientId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post(`${API_URL}/schedules`, { patientId: schedulePatientId, roomId: selectedRoom, scheduledStart: `${new Date().toISOString().slice(0,10)}T${scheduleTime}:00`, estimatedMinutes: 60 }, { headers });
+      setShowScheduleModal(false);
+      setSchedulePatientId(null);
+      await fetchRooms();
+    } catch (error) {
+      console.error('Erro ao criar agendamento:', error);
     }
   };
 
@@ -415,8 +474,8 @@ export default function SetupSala() {
         </div>
       </div>
 
-      {/* Grid de Salas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Lista de Salas (coluna única) */}
+      <div className="space-y-4">
         {rooms.map((room) => {
           const { isDelayed, minutes } = calculateDelay(room);
           
@@ -452,16 +511,29 @@ export default function SetupSala() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenRoomCase(room.id);
-                }}
-                className="mt-3 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
-              >
-                {openingRoomId === room.id ? 'Abrindo...' : 'Abrir caso da sala'}
-              </button>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleOpenRoomCase(room.id); }}
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
+                >
+                  {openingRoomId === room.id ? 'Abrindo...' : 'Abrir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleEditRoom(room); }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleCloseCase(room); }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                >
+                  Concluir
+                </button>
+              </div>
 
               {isDelayed && (
                 <div className="mt-2 flex items-center gap-1 text-red-600 text-xs font-bold">
@@ -711,6 +783,41 @@ export default function SetupSala() {
               <li>• Registre a justificativa ao ser solicitado</li>
             </ul>
           </div>
+
+          {/* Edit Room Modal */}
+          {editingRoom && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-lg font-bold mb-3">Editar Sala {editingRoom.code}</h3>
+                <label className="text-xs text-slate-500">Nome</label>
+                <input className="w-full p-2 border rounded mb-3" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-blue-600 text-white py-2 rounded" onClick={submitEditRoom}>Salvar</button>
+                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setEditingRoom(null)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Schedule Modal */}
+          {showScheduleModal && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-lg font-bold mb-3">Agendar paciente</h3>
+                <label className="text-xs text-slate-500">Paciente</label>
+                <select className="w-full p-2 border rounded mb-3" value={schedulePatientId || ''} onChange={(e) => setSchedulePatientId(e.target.value)}>
+                  <option value="">— selecione —</option>
+                  {patients.map((p) => (<option key={p.id} value={p.id}>{p.fullName} {p.noticeNumber ? `(${p.noticeNumber})` : ''}</option>))}
+                </select>
+                <label className="text-xs text-slate-500">Hora</label>
+                <input type="time" className="w-full p-2 border rounded mb-3" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} />
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-green-600 text-white py-2 rounded" onClick={submitSchedule}>Agendar</button>
+                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setShowScheduleModal(false)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Botão Salvar */}
           <div className="mt-6 flex gap-2">

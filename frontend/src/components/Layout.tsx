@@ -32,6 +32,7 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'salas', label: 'Salas Cirúrgicas', icon: LayoutIcon, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'setup-sala', label: 'Setup Sala', icon: Clock, role: ['Admin', 'User', 'Master', 'Usuário'] },
+    { id: 'schedules', label: 'Agendamentos', icon: ClipboardList, role: ['Admin', 'Master', 'User'] },
     { id: 'pacientes', label: 'Pacientes', icon: Users, role: ['Admin', 'Master'] },
     { id: 'cadastros', label: 'Cadastros', icon: ClipboardList, role: ['Admin', 'Master'] },
     { id: 'usuarios', label: 'Usuários', icon: Users, role: ['Admin', 'Master'] },

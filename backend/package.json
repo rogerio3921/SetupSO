@@ -5,6 +5,8 @@
   "main": "src/server.ts",
   "scripts": {
     "dev": "ts-node src/server.ts",
+    "prestart": "npm run db:sync",
+    "db:sync": "prisma generate && prisma db push --skip-generate",
     "start": "node dist/server.js",
     "build": "tsc",
     "prisma:generate": "prisma generate",
