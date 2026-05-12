@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, AlertCircle, X, Check } from 'lucide-react';
+import { Clock, AlertCircle, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
@@ -63,6 +63,9 @@ export default function SetupSala() {
   const [openingRoomId, setOpeningRoomId] = useState<string | null>(null);
   const [caseEvents, setCaseEvents] = useState<any[]>([]);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editEventId, setEditEventId] = useState<string | null>(null);
+  const [editEventTime, setEditEventTime] = useState<string>('');
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [schedulePatientId, setSchedulePatientId] = useState<string | null>(null);
   const [scheduleTime, setScheduleTime] = useState('07:00');
@@ -276,6 +279,32 @@ export default function SetupSala() {
     }
   };
 
+  const openEditEventModal = (event: any) => {
+    setEditEventId(event.id);
+    const d = new Date(event.happenedAt);
+    setEditEventTime(d.toISOString().slice(0,19));
+    setShowEditEventModal(true);
+  };
+
+  const submitEditEvent = async () => {
+    if (!editEventId) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(`${API_URL}/events/${editEventId}`, { happenedAt: new Date(editEventTime).toISOString() }, { headers: { Authorization: `Bearer ${token}` } });
+      if (selectedRoom) {
+        const active = rooms.find((r) => r.id === selectedRoom);
+        if (active?.caseId) await fetchCaseEvents(active.caseId);
+      }
+      await fetchRooms();
+    } catch (error) {
+      console.error('Erro ao editar evento:', error);
+    } finally {
+      setShowEditEventModal(false);
+      setEditEventId(null);
+      setEditEventTime('');
+    }
+  };
+
   const timelineStages: TimelineStage[] = [
     { seq: 1, key: 'anesthesia_team', label: 'Equipe anestesia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
     { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
@@ -458,18 +487,18 @@ export default function SetupSala() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="card shadow-sm p-4 border border-slate-200 hero rounded-2xl">
+      <div className="card shadow-sm p-4 border border-slate-200 hero rounded-2xl bg-white">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Clock className="text-white" size={28} />
-              <h1 className="text-2xl md:text-3xl font-black text-white">Setup de Sala - Tempos e Movimentos</h1>
+              <Clock className="text-slate-700" size={28} />
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900">Setup de Sala - Tempos e Movimentos</h1>
             </div>
-            <p className="text-sm text-white/80 mt-1">Acompanhe sala, paciente, procedimento e tempos de forma operacional.</p>
+            <p className="text-sm text-slate-600 mt-1">Acompanhe sala, paciente, procedimento e tempos de forma operacional.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="chip bg-white/15 text-white border border-white/20">Salas</span>
-            <span className="chip bg-white/15 text-white border border-white/20">Ações em tempo real</span>
+            <span className="chip bg-slate-100 text-slate-900 border border-slate-200">Salas</span>
+            <span className="chip bg-slate-100 text-slate-900 border border-slate-200">Ações em tempo real</span>
           </div>
         </div>
       </div>
@@ -478,23 +507,37 @@ export default function SetupSala() {
       <div className="space-y-4">
         {rooms.map((room) => {
           const { isDelayed, minutes } = calculateDelay(room);
+          const roomCaseEvents = room.caseId ? caseEvents.filter((e) => e.caseId === room.caseId) : [];
+          const expanded = selectedRoom === room.id;
           
           return (
             <div
               key={room.id}
-              onClick={() => setSelectedRoom(room.id)}
-              className={`border-2 rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all ${getStatusColor(room)}`}
+              className={`border-2 rounded-2xl p-4 transition-all ${getStatusColor(room)}`}
             >
               <div className="flex justify-between items-start mb-2">
-                <h3 className="font-black text-lg">{room.code}</h3>
-                <span className="text-xs font-bold bg-white px-2 py-1 rounded-full">
-                  {room.times?.transportStart ? '1' : '—'}
-                </span>
+                <div className="flex items-start gap-3">
+                  <div>
+                    <h3 className="font-black text-lg">{room.code}</h3>
+                    <p className="text-sm font-bold text-slate-900">{room.name}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline text-xs font-bold bg-white px-2 py-1 rounded-full">
+                    {room.times?.transportStart ? '1' : '—'}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedRoom(expanded ? null : room.id); }}
+                    className="p-2 rounded-full hover:bg-slate-100"
+                    aria-label={expanded ? 'Fechar detalhes' : 'Abrir detalhes'}
+                  >
+                    {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                </div>
               </div>
 
-              <p className="text-sm font-bold text-slate-900">{room.name}</p>
-              
-              <div className="mt-3 space-y-1">
+              <div className="mt-2 space-y-1">
                 <p className="text-xs text-slate-600">
                   <strong>Paciente:</strong> {room.patientName || 'Não informado'}
                 </p>
@@ -511,25 +554,25 @@ export default function SetupSala() {
                 </div>
               </div>
 
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleOpenRoomCase(room.id); }}
-                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   {openingRoomId === room.id ? 'Abrindo...' : 'Abrir'}
                 </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleEditRoom(room); }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   Editar
                 </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleCloseCase(room); }}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   Concluir
                 </button>
@@ -539,6 +582,179 @@ export default function SetupSala() {
                 <div className="mt-2 flex items-center gap-1 text-red-600 text-xs font-bold">
                   <AlertCircle size={14} />
                   Justificar atraso
+                </div>
+              )}
+
+              {/* Inline expanded details */}
+              {expanded && (
+                <div className="mt-4 bg-white rounded-2xl border-2 border-green-400 p-4 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-black text-slate-900">{room.code} - {room.patientName}</h2>
+                    <button
+                      onClick={() => setSelectedRoom(null)}
+                      className="p-2 hover:bg-slate-100 rounded-lg"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRoomCase(room.id)}
+                    className="mb-4 w-full bg-green-600 hover:bg-green-700 text-white font-black py-2 px-4 rounded-full transition-all"
+                  >
+                    {openingRoomId === room.id ? 'Sincronizando...' : 'Abrir / sincronizar caso ativo'}
+                  </button>
+
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                      <p className="text-xs text-slate-500">PACIENTE</p>
+                      <p className="font-bold text-slate-900">{room.patientName || 'Não informado'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                      <p className="text-xs text-slate-500">PROCEDIMENTO</p>
+                      <p className="font-bold text-slate-900">{room.procedureName || '—'}</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                      <p className="text-xs text-slate-500">CIRURGIÃO</p>
+                      <p className="font-bold text-slate-900">{room.surgeonName || '—'}</p>
+                    </div>
+                  </div>
+
+                  {calculateDelay(room).isDelayed && (
+                    <div className="mb-4 bg-red-100 border-l-4 border-red-500 p-3 rounded">
+                      <p className="text-sm font-bold text-red-800">
+                        ⚠️ Atraso de {calculateDelay(room).minutes} minutos detectado
+                        {room.delayReason && ` - Motivo: ${room.delayReason}`}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mb-4 bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <p className="text-sm font-black text-slate-900">Linha do tempo da execução</p>
+                        <p className="text-xs text-slate-500">Cada etapa mostra o estado atual e o próximo registro esperado.</p>
+                      </div>
+                      <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                        {roomCaseEvents.length} eventos
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {timelineStages.map((stage, index) => {
+                        const stageEvents = getStageEvents(room.caseId, stage.key);
+                        const status = getStageStatus(stage, stageEvents);
+                        const startEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'start' : 'in'));
+                        const endEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'end' : 'out'));
+                        const duration = getStageDuration(room.caseId, stage);
+
+                        return (
+                          <div key={stage.key} className={`relative rounded-xl border p-4 ${stageBorderClass(status)}`}>
+                            {index < timelineStages.length - 1 && (
+                              <div className="absolute left-6 top-12 bottom-0 w-px bg-slate-200" />
+                            )}
+
+                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between relative z-10">
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-1 h-4 w-4 rounded-full border-2 ${status === 'done' ? 'bg-green-500 border-green-500' : status === 'active' ? 'bg-amber-500 border-amber-500' : 'bg-white border-slate-300'}`} />
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-black text-slate-900">{stage.seq}. {stage.label}</p>
+                                    <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${stageBadgeClass(status)}`}>
+                                      {status === 'done' ? 'Concluída' : status === 'active' ? 'Em andamento' : 'Pendente'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-500 mt-1">
+                                    Início: {formatEventTime(startEvent?.happenedAt)}
+                                    {stage.kind === 'start_end' ? ` • Fim: ${formatEventTime(endEvent?.happenedAt)}` : ` • Saída: ${formatEventTime(endEvent?.happenedAt)}`}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                {stage.kind === 'start_end' ? (
+                                  (() => {
+                                    const hasStart = !!startEvent;
+                                    const hasEnd = !!endEvent;
+                                    const disabled = !room.caseId || hasStart && hasEnd;
+                                    const primaryLabel = !hasStart ? 'Início' : hasStart && !hasEnd ? 'Fim' : 'Concluído';
+                                    const primaryAction: any = !hasStart ? 'start' : hasStart && !hasEnd ? 'end' : null;
+                                    return (
+                                      <>
+                                        <button
+                                          type="button"
+                                          disabled={disabled}
+                                          onClick={() => room.caseId && primaryAction && recordEvent(room.caseId, stage.key, primaryAction)}
+                                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                            disabled
+                                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                              : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                          }`}
+                                        >
+                                          {hasStart && !hasEnd ? `Fazer Fim` : primaryLabel}
+                                        </button>
+                                        {duration !== null && (
+                                          <div className="px-3 py-2 rounded-lg bg-white border text-xs font-bold">
+                                            Duração: {formatDuration(duration)}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()
+                                ) : (
+                                  stage.actions.map((action) => {
+                                    const disabled = !room.caseId || getStageButtonDisabled(stage, stageEvents, action.action);
+                                    const isPrimary = action.action === (stage.kind === 'start_end' ? 'start' : 'in');
+                                    return (
+                                      <button
+                                        key={`${stage.key}-${action.action}`}
+                                        type="button"
+                                        disabled={disabled}
+                                        onClick={() => room.caseId && recordEvent(room.caseId, stage.key, action.action)}
+                                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                          disabled
+                                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                            : isPrimary
+                                              ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                              : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500 hover:bg-slate-50'
+                                        }`}
+                                      >
+                                        {stageEvents.some((event) => event.action === action.action) ? `✓ ${action.label}` : action.label}
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+
+                            {stageEvents.length > 0 && (
+                              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                {stageEvents.map((event) => (
+                                  <div key={event.id} className="flex items-center justify-between rounded-lg bg-white/80 border border-slate-200 px-3 py-2">
+                                    <div className="flex items-center gap-3">
+                                      <span className="font-bold text-slate-700">{event.action}</span>
+                                      <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => openEditEventModal(event)}
+                                        className="text-xs px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                                      >
+                                        Editar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* resumo / históricos e campos seguem — para brevidade, utilizamos o mesmo layout já existente */}
                 </div>
               )}
             </div>
@@ -611,6 +827,7 @@ export default function SetupSala() {
                 const status = getStageStatus(stage, stageEvents);
                 const startEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'start' : 'in'));
                 const endEvent = stageEvents.find((event) => event.action === (stage.kind === 'start_end' ? 'end' : 'out'));
+                const duration = getStageDuration(activeRoom.caseId, stage);
 
                 return (
                   <div key={stage.key} className={`relative rounded-xl border p-4 ${stageBorderClass(status)}`}>
@@ -636,27 +853,58 @@ export default function SetupSala() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {stage.actions.map((action) => {
-                          const disabled = !activeRoom.caseId || getStageButtonDisabled(stage, stageEvents, action.action);
-                          const isPrimary = action.action === (stage.kind === 'start_end' ? 'start' : 'in');
-                          return (
-                            <button
-                              key={`${stage.key}-${action.action}`}
-                              type="button"
-                              disabled={disabled}
-                              onClick={() => activeRoom.caseId && recordEvent(activeRoom.caseId, stage.key, action.action)}
-                              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
-                                disabled
-                                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                                  : isPrimary
-                                    ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-                                    : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500 hover:bg-slate-50'
-                              }`}
-                            >
-                              {stageEvents.some((event) => event.action === action.action) ? `✓ ${action.label}` : action.label}
-                            </button>
-                          );
-                        })}
+                        {stage.kind === 'start_end' ? (
+                          (() => {
+                            const hasStart = !!startEvent;
+                            const hasEnd = !!endEvent;
+                            const disabled = !activeRoom.caseId || hasStart && hasEnd;
+                            const primaryLabel = !hasStart ? 'Início' : hasStart && !hasEnd ? 'Fim' : 'Concluído';
+                            const primaryAction: any = !hasStart ? 'start' : hasStart && !hasEnd ? 'end' : null;
+                            return (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => activeRoom.caseId && primaryAction && recordEvent(activeRoom.caseId, stage.key, primaryAction)}
+                                  className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                    disabled
+                                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                      : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                  }`}
+                                >
+                                  {hasStart && !hasEnd ? `Fazer Fim` : primaryLabel}
+                                </button>
+                                {duration !== null && (
+                                  <div className="px-3 py-2 rounded-lg bg-white border text-xs font-bold">
+                                    Duração: {formatDuration(duration)}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()
+                        ) : (
+                          stage.actions.map((action) => {
+                            const disabled = !activeRoom.caseId || getStageButtonDisabled(stage, stageEvents, action.action);
+                            const isPrimary = action.action === (stage.kind === 'start_end' ? 'start' : 'in');
+                            return (
+                              <button
+                                key={`${stage.key}-${action.action}`}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => activeRoom.caseId && recordEvent(activeRoom.caseId, stage.key, action.action)}
+                                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                  disabled
+                                    ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                    : isPrimary
+                                      ? 'bg-green-600 text-white border-green-600 hover:bg-green-700'
+                                      : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500 hover:bg-slate-50'
+                                }`}
+                              >
+                                {stageEvents.some((event) => event.action === action.action) ? `✓ ${action.label}` : action.label}
+                              </button>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
 
@@ -664,8 +912,18 @@ export default function SetupSala() {
                       <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                         {stageEvents.map((event) => (
                           <div key={event.id} className="flex items-center justify-between rounded-lg bg-white/80 border border-slate-200 px-3 py-2">
-                            <span className="font-bold text-slate-700">{event.action}</span>
-                            <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-slate-700">{event.action}</span>
+                              <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openEditEventModal(event)}
+                                className="text-xs px-2 py-1 bg-slate-100 rounded hover:bg-slate-200"
+                              >
+                                Editar
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -814,6 +1072,26 @@ export default function SetupSala() {
                 <div className="flex gap-2">
                   <button className="flex-1 bg-green-600 text-white py-2 rounded" onClick={submitSchedule}>Agendar</button>
                   <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setShowScheduleModal(false)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Event Modal */}
+          {showEditEventModal && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 className="text-lg font-bold mb-3">Editar horário do evento</h3>
+                <label className="text-xs text-slate-500">Data e hora (UTC)</label>
+                <input
+                  type="datetime-local"
+                  className="w-full p-2 border rounded mb-3"
+                  value={editEventTime}
+                  onChange={(e) => setEditEventTime(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button className="flex-1 bg-green-600 text-white py-2 rounded" onClick={submitEditEvent}>Salvar</button>
+                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setShowEditEventModal(false)}>Cancelar</button>
                 </div>
               </div>
             </div>

@@ -184,6 +184,24 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
   }
 });
 
+// Update event timestamp
+app.patch('/api/events/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { happenedAt } = req.body;
+    const data: any = {};
+    if (happenedAt) data.happenedAt = new Date(happenedAt);
+
+    const updated = await prisma.event.update({
+      where: { id: eventId },
+      data,
+    });
+    res.json(updated);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update event' });
+  }
+});
+
 // Users routes (admin only)
 app.get('/api/users', async (req, res) => {
   try {

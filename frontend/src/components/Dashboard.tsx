@@ -78,6 +78,13 @@ interface TimelineStage {
 }
 
 export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const [kpiData, setKpiData] = useState<KPIData>({
     totalSurgeries: 0,
     averageTransportToOrMs: null,
@@ -461,7 +468,10 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
+        <div>
+          <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
+          <div className="text-sm text-slate-500">{currentTime.toLocaleDateString('pt-BR')} • {currentTime.toLocaleTimeString('pt-BR')}</div>
+        </div>
         <button className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all">
           <Plus size={20} />
           Novo Caso
