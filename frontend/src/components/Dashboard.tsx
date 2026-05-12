@@ -250,7 +250,7 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   // Se está em modo expandido, mostrar detalhes
   if (expandedRoomId && expandedRoom) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 max-w-7xl mx-auto">
         {/* Header Expandido */}
         <div className="flex items-center gap-2 mb-4">
           <button 
@@ -259,21 +259,24 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           >
             <X size={24} />
           </button>
-          <h1 className="text-3xl font-black text-slate-900">Dashboard - {expandedRoom.code}</h1>
+          <div>
+            <h1 className="text-3xl font-black text-slate-900">Dashboard - {expandedRoom.code}</h1>
+            <p className="text-xs text-slate-500">Visão em tempo real do caso ativo e suas durações.</p>
+          </div>
         </div>
 
         {/* Layout: Card + Tempos */}
         <div className="grid grid-cols-12 gap-6">
           {/* Coluna Esquerda: Card da Sala */}
           <div className="col-span-12 lg:col-span-3">
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border-2 border-green-500">
+            <div className="bg-gradient-to-br from-[#0b2a4a] via-[#0f3c6e] to-[#134e91] text-white rounded-2xl p-6 border border-white/10 shadow-lg">
               <p className="text-xl font-bold text-slate-900 mb-2">{expandedRoom.code} - {expandedRoom.name}</p>
 
               {onOpenSetupSala && (
                 <button
                   type="button"
                   onClick={() => onOpenSetupSala(expandedRoom.id)}
-                  className="mb-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all"
+                  className="mb-4 w-full bg-white text-slate-900 font-black py-2 px-4 rounded-full transition-all"
                 >
                   Iniciar cirurgia nesta sala
                 </button>
@@ -282,61 +285,67 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
               {expandedCase ? (
                 <>
                   <div className="mb-4">
-                    <p className="text-sm text-slate-600">CIRURGIÃO</p>
-                    <p className="text-lg font-bold text-slate-900">{expandedCase.surgeon || 'N/A'}</p>
+                    <p className="text-xs text-white/75 font-black uppercase tracking-wide">CIRURGIÃO</p>
+                    <p className="text-lg font-bold text-white">{expandedCase.surgeon || 'N/A'}</p>
                   </div>
                   
                   <div className="mb-4">
-                    <p className="text-sm text-slate-600">PACIENTE</p>
-                    <p className="text-lg font-bold text-slate-900">{expandedCase.patientFullName || 'N/A'}</p>
+                    <p className="text-xs text-white/75 font-black uppercase tracking-wide">PACIENTE</p>
+                    <p className="text-lg font-bold text-white">{expandedCase.patientFullName || 'N/A'}</p>
                   </div>
 
                   <div className="mb-4">
-                    <p className="text-sm text-slate-600">PROCEDIMENTO</p>
-                    <p className="text-lg font-bold text-slate-900">{expandedCase.procedureName || 'N/A'}</p>
+                    <p className="text-xs text-white/75 font-black uppercase tracking-wide">PROCEDIMENTO</p>
+                    <p className="text-lg font-bold text-white">{expandedCase.procedureName || 'N/A'}</p>
                   </div>
 
-                  <div className="mb-4 p-3 bg-white rounded border-l-4 border-green-500">
-                    <p className="text-xs text-slate-500">STATUS</p>
-                    <p className="text-lg font-bold text-green-600">{expandedCase.status || 'LIBERADO'}</p>
+                  <div className="mb-4 p-3 bg-white/10 rounded-xl border border-white/15">
+                    <p className="text-xs text-white/70">STATUS</p>
+                    <p className="text-lg font-black text-white">{expandedCase.status || 'LIBERADO'}</p>
                   </div>
 
                   {expandedCase.delayReason && (
-                    <div className="mb-4 p-3 bg-amber-50 rounded border-l-4 border-amber-500">
+                    <div className="mb-4 p-3 bg-amber-500/20 rounded-xl border border-amber-300/20">
                       <p className="text-xs text-slate-500">JUSTIFICATIVA DE ATRASO</p>
-                      <p className="text-sm font-bold text-amber-800">{expandedCase.delayReason}</p>
+                      <p className="text-sm font-bold text-white">{expandedCase.delayReason}</p>
                     </div>
                   )}
 
                   {/* Tempos Totais */}
                   <div className="space-y-3 mt-6">
-                    <div className="bg-white p-3 rounded">
-                      <p className="text-xs text-slate-500">TEMPO TOTAL DA SALA</p>
-                      <p className="text-2xl font-black text-slate-900">03h45</p>
+                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                      <p className="text-xs text-white/70">TEMPO TOTAL DA SALA</p>
+                      <p className="text-2xl font-black text-white">03h45</p>
                     </div>
-                    <div className="bg-white p-3 rounded">
-                      <p className="text-xs text-slate-500">MÉDIA TOTAL DE SALA</p>
-                      <p className="text-2xl font-black text-slate-900">03h15</p>
+                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                      <p className="text-xs text-white/70">MÉDIA TOTAL DE SALA</p>
+                      <p className="text-2xl font-black text-white">03h15</p>
                     </div>
-                    <div className="bg-white p-3 rounded">
-                      <p className="text-xs text-slate-500">INTERVALO ENTRE CIRURGIAS</p>
-                      <p className="text-2xl font-black text-slate-900">00h26</p>
+                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+                      <p className="text-xs text-white/70">INTERVALO ENTRE CIRURGIAS</p>
+                      <p className="text-2xl font-black text-white">00h26</p>
                     </div>
                   </div>
                 </>
               ) : (
-                <p className="text-slate-500 italic">Sala disponível</p>
+                <p className="text-white/80 italic">Sala disponível</p>
               )}
             </div>
           </div>
 
           {/* Coluna Direita: Grid de Tempos e Movimentos */}
           <div className="col-span-12 lg:col-span-9">
-            <div className="bg-white rounded-lg p-6 border border-slate-200">
-              <h2 className="text-xl font-bold text-slate-900 mb-6">SETUP DE SALA – TEMPOS E MOVIMENTOS</h2>
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">SETUP DE SALA – TEMPOS E MOVIMENTOS</h2>
+                  <p className="text-xs text-slate-500">Linha do tempo e cartões de ações da sala atual.</p>
+                </div>
+                <span className="text-xs font-black px-2 py-1 rounded-full bg-slate-100 text-slate-600">Tempo real</span>
+              </div>
               
               {/* Grid 3x5 de Tempos */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {/* Linha 1: Transporte */}
                 <TimeCard label="TRANSPORTE" fields={['PACIENTE INICIO / FIM']} />
                 

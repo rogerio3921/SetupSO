@@ -47,6 +47,7 @@ interface TimelineStage {
   key: string;
   label: string;
   kind: 'start_end' | 'in_out';
+  seq: number;
   actions: Array<{ label: string; action: TimelineActionKey }>;
 }
 
@@ -217,15 +218,21 @@ export default function SetupSala() {
   };
 
   const timelineStages: TimelineStage[] = [
-    { key: 'transport_patient', label: 'Transporte do paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { key: 'surgery', label: 'Cirurgia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { key: 'rpa', label: 'RPA', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { key: 'anesthesia_team', label: 'Equipe anestesia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 1, key: 'anesthesia_team', label: 'Equipe anestesia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 3, key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { seq: 4, key: 'admission_cc', label: 'Admissão no CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { seq: 7, key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { seq: 8, key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { seq: 9, key: 'surgery', label: 'Cirurgia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+    { seq: 10, key: 'cme', label: 'CME', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 11, key: 'cleaning', label: 'Limpeza', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 12, key: 'pharmacy', label: 'Farmácia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 13, key: 'clinical_engineering', label: 'Eng. clínica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 14, key: 'rpa', label: 'RPA', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 15, key: 'room_setup', label: 'Montagem sala', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
   ];
 
   const getStageEvents = (caseId: string | undefined, stageKey: string) => {
@@ -268,6 +275,33 @@ export default function SetupSala() {
     if (status === 'done') return 'border-green-300 bg-green-50';
     if (status === 'active') return 'border-amber-300 bg-amber-50';
     return 'border-slate-200 bg-white';
+  };
+
+  const formatDuration = (ms?: number | null) => {
+    if (ms === null || ms === undefined || Number.isNaN(ms)) return '—';
+    const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  };
+
+  const getStageDuration = (caseId: string | undefined, stage: TimelineStage) => {
+    const stageEvents = getStageEvents(caseId, stage.key);
+    const startAction = stage.kind === 'start_end' ? 'start' : 'in';
+    const endAction = stage.kind === 'start_end' ? 'end' : 'out';
+    const startEvent = stageEvents.find((event) => event.action === startAction);
+    const endEvent = stageEvents.find((event) => event.action === endAction);
+    if (!startEvent || !endEvent) return null;
+    return new Date(endEvent.happenedAt).getTime() - new Date(startEvent.happenedAt).getTime();
+  };
+
+  const getRecentMovements = (caseId: string | undefined) => {
+    if (!caseId) return [];
+    return caseEvents
+      .filter((event) => event.caseId === caseId)
+      .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())
+      .slice(0, 12);
   };
 
   const calculateDelay = (room: RoomSetup): { isDelayed: boolean; minutes: number } => {
@@ -364,14 +398,25 @@ export default function SetupSala() {
   const selectedRoomCaseEvents = activeRoom?.caseId ? caseEvents.filter((event) => event.caseId === activeRoom.caseId) : [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Clock className="text-green-600" size={32} />
-        <h1 className="text-3xl font-black text-slate-900">Setup de Sala - Tempos e Movimentos</h1>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="card shadow-sm p-4 border border-slate-200 hero rounded-2xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Clock className="text-white" size={28} />
+              <h1 className="text-2xl md:text-3xl font-black text-white">Setup de Sala - Tempos e Movimentos</h1>
+            </div>
+            <p className="text-sm text-white/80 mt-1">Acompanhe sala, paciente, procedimento e tempos de forma operacional.</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="chip bg-white/15 text-white border border-white/20">Salas</span>
+            <span className="chip bg-white/15 text-white border border-white/20">Ações em tempo real</span>
+          </div>
+        </div>
       </div>
 
       {/* Grid de Salas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {rooms.map((room) => {
           const { isDelayed, minutes } = calculateDelay(room);
           
@@ -379,11 +424,11 @@ export default function SetupSala() {
             <div
               key={room.id}
               onClick={() => setSelectedRoom(room.id)}
-              className={`border-2 rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all ${getStatusColor(room)}`}
+              className={`border-2 rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all ${getStatusColor(room)}`}
             >
               <div className="flex justify-between items-start mb-2">
                 <h3 className="font-black text-lg">{room.code}</h3>
-                <span className="text-xs font-bold bg-white px-2 py-1 rounded">
+                <span className="text-xs font-bold bg-white px-2 py-1 rounded-full">
                   {room.times?.transportStart ? '1' : '—'}
                 </span>
               </div>
@@ -413,7 +458,7 @@ export default function SetupSala() {
                   e.stopPropagation();
                   handleOpenRoomCase(room.id);
                 }}
-                className="mt-3 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-lg"
+                className="mt-3 w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
               >
                 {openingRoomId === room.id ? 'Abrindo...' : 'Abrir caso da sala'}
               </button>
@@ -431,7 +476,7 @@ export default function SetupSala() {
 
       {/* Detalhes da Sala Selecionada */}
       {activeRoom && (
-        <div className="bg-white rounded-lg border-2 border-green-400 p-6">
+        <div className="bg-white rounded-2xl border-2 border-green-400 p-6 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-black text-slate-900">
               {activeRoom.code} - {activeRoom.patientName}
@@ -447,21 +492,21 @@ export default function SetupSala() {
           <button
             type="button"
             onClick={() => handleOpenRoomCase(activeRoom.id)}
-            className="mb-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all"
+            className="mb-4 w-full bg-green-600 hover:bg-green-700 text-white font-black py-2 px-4 rounded-full transition-all"
           >
             {openingRoomId === activeRoom.id ? 'Sincronizando...' : 'Abrir / sincronizar caso ativo'}
           </button>
 
           <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
               <p className="text-xs text-slate-500">PACIENTE</p>
               <p className="font-bold text-slate-900">{activeRoom.patientName || 'Não informado'}</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
               <p className="text-xs text-slate-500">PROCEDIMENTO</p>
               <p className="font-bold text-slate-900">{activeRoom.procedureName || '—'}</p>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
               <p className="text-xs text-slate-500">CIRURGIÃO</p>
               <p className="font-bold text-slate-900">{activeRoom.surgeonName || '—'}</p>
             </div>
@@ -477,7 +522,7 @@ export default function SetupSala() {
             </div>
           )}
 
-          <div className="mb-6 bg-slate-50 rounded-lg border border-slate-200 p-4">
+          <div className="mb-6 bg-slate-50 rounded-2xl border border-slate-200 p-4">
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
                 <p className="text-sm font-black text-slate-900">Linha do tempo da execução</p>
@@ -506,7 +551,7 @@ export default function SetupSala() {
                         <div className={`mt-1 h-4 w-4 rounded-full border-2 ${status === 'done' ? 'bg-green-500 border-green-500' : status === 'active' ? 'bg-amber-500 border-amber-500' : 'bg-white border-slate-300'}`} />
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-black text-slate-900">{stage.label}</p>
+                            <p className="font-black text-slate-900">{stage.seq}. {stage.label}</p>
                             <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${stageBadgeClass(status)}`}>
                               {status === 'done' ? 'Concluída' : status === 'active' ? 'Em andamento' : 'Pendente'}
                             </span>
@@ -558,25 +603,64 @@ export default function SetupSala() {
               })}
             </div>
 
-            <div className="mt-4 bg-white rounded-lg border border-slate-200 p-3">
-              <p className="text-xs font-bold text-slate-500 mb-2">Resumo da sala</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded bg-slate-50 p-2">
-                  <span className="block text-slate-500">Paciente</span>
-                  <span className="font-bold text-slate-900">{activeRoom.patientName || '—'}</span>
+            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-500 mb-2">Resumo da sala</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <span className="block text-slate-500">Paciente</span>
+                    <span className="font-bold text-slate-900">{activeRoom.patientName || '—'}</span>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <span className="block text-slate-500">Procedimento</span>
+                    <span className="font-bold text-slate-900">{activeRoom.procedureName || '—'}</span>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <span className="block text-slate-500">Cirurgião</span>
+                    <span className="font-bold text-slate-900">{activeRoom.surgeonName || '—'}</span>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <span className="block text-slate-500">Previsto</span>
+                    <span className="font-bold text-slate-900">{activeRoom.scheduledStart || '—'}</span>
+                  </div>
                 </div>
-                <div className="rounded bg-slate-50 p-2">
-                  <span className="block text-slate-500">Procedimento</span>
-                  <span className="font-bold text-slate-900">{activeRoom.procedureName || '—'}</span>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-3">
+                <p className="text-xs font-bold text-slate-500 mb-2">Histórico e movimentações</p>
+                <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                  {getRecentMovements(activeRoom.caseId).map((event) => (
+                    <div key={event.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs">
+                      <div>
+                        <p className="font-black text-slate-800">{event.eventKey}</p>
+                        <p className="text-slate-500">{event.action} {event.auto ? '• auto' : '• manual'}</p>
+                      </div>
+                      <span className="font-bold text-slate-600">{formatEventTime(event.happenedAt)}</span>
+                    </div>
+                  ))}
+                  {getRecentMovements(activeRoom.caseId).length === 0 && (
+                    <p className="text-xs text-slate-500">Nenhum movimento registrado ainda.</p>
+                  )}
                 </div>
-                <div className="rounded bg-slate-50 p-2">
-                  <span className="block text-slate-500">Cirurgião</span>
-                  <span className="font-bold text-slate-900">{activeRoom.surgeonName || '—'}</span>
-                </div>
-                <div className="rounded bg-slate-50 p-2">
-                  <span className="block text-slate-500">Previsto</span>
-                  <span className="font-bold text-slate-900">{activeRoom.scheduledStart || '—'}</span>
-                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 bg-white rounded-xl border border-slate-200 p-3">
+              <p className="text-xs font-bold text-slate-500 mb-2">Durações concluídas</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 text-xs">
+                {timelineStages.map((stage) => {
+                  const duration = getStageDuration(activeRoom.caseId, stage);
+                  if (duration === null) return null;
+                  return (
+                    <div key={stage.key} className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                      <span className="block text-slate-500 font-bold uppercase tracking-wide">{stage.seq}. {stage.label}</span>
+                      <span className="block mt-1 text-slate-900 font-black mono">{formatDuration(duration)}</span>
+                    </div>
+                  );
+                })}
+                {timelineStages.every((stage) => getStageDuration(activeRoom.caseId, stage) === null) && (
+                  <p className="text-xs text-slate-500">As durações aparecem quando início e fim forem registrados.</p>
+                )}
               </div>
             </div>
           </div>
