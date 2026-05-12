@@ -11,6 +11,14 @@ interface Room {
   status: string;
 }
 
+interface PatientOption {
+  id: string;
+  fullName: string;
+  noticeNumber?: string | null;
+  roomId?: string | null;
+  status?: string;
+}
+
 interface SetupTimes {
   transportStart?: string;
   transportEnd?: string;
@@ -53,7 +61,7 @@ interface TimelineStage {
 
 export default function SetupSala() {
   const [rooms, setRooms] = useState<RoomSetup[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [showDelayPopup, setShowDelayPopup] = useState(false);
@@ -63,6 +71,7 @@ export default function SetupSala() {
   const [openingRoomId, setOpeningRoomId] = useState<string | null>(null);
   const [caseEvents, setCaseEvents] = useState<any[]>([]);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editingRoomPatientId, setEditingRoomPatientId] = useState<string>('');
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [editEventTime, setEditEventTime] = useState<string>('');
   const [showEditEventModal, setShowEditEventModal] = useState(false);
@@ -197,6 +206,8 @@ export default function SetupSala() {
   const handleEditRoom = async (room: Room) => {
     setEditingRoom(room);
     setEditValue(room.name || '');
+    const currentPatient = patients.find((patient) => patient.roomId === room.id && patient.status === 'scheduled');
+    setEditingRoomPatientId(currentPatient?.id || '');
   };
 
   const submitEditRoom = async () => {
@@ -206,8 +217,19 @@ export default function SetupSala() {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await axios.patch(`${API_URL}/rooms/${editingRoom.id}`, { name: editValue }, { headers });
       setRooms((current) => current.map((r) => r.id === response.data.id ? { ...r, name: response.data.name } : r));
+
+      if (editingRoomPatientId) {
+        await axios.patch(
+          `${API_URL}/patients/${editingRoomPatientId}`,
+          { roomId: editingRoom.id, status: 'scheduled' },
+          { headers }
+        );
+      }
+
       setEditingRoom(null);
       setEditValue('');
+      setEditingRoomPatientId('');
+      await fetchRooms();
     } catch (error) {
       console.error('Erro ao editar sala:', error);
     }
@@ -672,7 +694,7 @@ export default function SetupSala() {
                                 </div>
                               </div>
 
-                              <div className="flex flex-wrap gap-2">
+                              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:min-w-[220px]">
                                 {stage.kind === 'start_end' ? (
                                   (() => {
                                     const hasStart = !!startEvent;
@@ -686,7 +708,7 @@ export default function SetupSala() {
                                           type="button"
                                           disabled={disabled}
                                           onClick={() => room.caseId && primaryAction && recordEvent(room.caseId, stage.key, primaryAction)}
-                                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
                                             disabled
                                               ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                               : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
@@ -695,8 +717,13 @@ export default function SetupSala() {
                                           {hasStart && !hasEnd ? `Fazer Fim` : primaryLabel}
                                         </button>
                                         {duration !== null && (
-                                          <div className="px-3 py-2 rounded-lg bg-white border text-xs font-bold">
+                                          <div className="w-full px-3 py-2 rounded-lg bg-white border text-xs font-bold">
                                             Duração: {formatDuration(duration)}
+                                          </div>
+                                        )}
+                                        {duration === null && (
+                                          <div className="invisible w-full px-3 py-2 rounded-lg border text-xs font-bold">
+                                            Duração: 00:00:00
                                           </div>
                                         )}
                                       </>
@@ -712,7 +739,7 @@ export default function SetupSala() {
                                         type="button"
                                         disabled={disabled}
                                         onClick={() => room.caseId && recordEvent(room.caseId, stage.key, action.action)}
-                                        className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
+                                        className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
                                           disabled
                                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                             : isPrimary
@@ -1050,8 +1077,22 @@ export default function SetupSala() {
                 <label className="text-xs text-slate-500">Nome</label>
                 <input className="w-full p-2 border rounded mb-3" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
                 <div className="flex gap-2">
-                  <button className="flex-1 bg-blue-600 text-white py-2 rounded" onClick={submitEditRoom}>Salvar</button>
-                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setEditingRoom(null)}>Cancelar</button>
+                  <label className="text-xs text-slate-500">Paciente</label>
+                  <select
+                    className="w-full p-2 border rounded mb-3"
+                    value={editingRoomPatientId}
+                    onChange={(e) => setEditingRoomPatientId(e.target.value)}
+                  >
+                    <option value="">— sem paciente vinculado —</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.fullName}{patient.noticeNumber ? ` (${patient.noticeNumber})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditRoom}>Salvar</button>
+                    <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setEditingRoom(null)}>Cancelar</button>
                 </div>
               </div>
             </div>
@@ -1070,8 +1111,8 @@ export default function SetupSala() {
                 <label className="text-xs text-slate-500">Hora</label>
                 <input type="time" className="w-full p-2 border rounded mb-3" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} />
                 <div className="flex gap-2">
-                  <button className="flex-1 bg-green-600 text-white py-2 rounded" onClick={submitSchedule}>Agendar</button>
-                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setShowScheduleModal(false)}>Cancelar</button>
+                  <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitSchedule}>Agendar</button>
+                  <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setShowScheduleModal(false)}>Cancelar</button>
                 </div>
               </div>
             </div>
@@ -1090,8 +1131,8 @@ export default function SetupSala() {
                   onChange={(e) => setEditEventTime(e.target.value)}
                 />
                 <div className="flex gap-2">
-                  <button className="flex-1 bg-green-600 text-white py-2 rounded" onClick={submitEditEvent}>Salvar</button>
-                  <button className="flex-1 bg-slate-300 py-2 rounded" onClick={() => setShowEditEventModal(false)}>Cancelar</button>
+                  <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditEvent}>Salvar</button>
+                  <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setShowEditEventModal(false)}>Cancelar</button>
                 </div>
               </div>
             </div>

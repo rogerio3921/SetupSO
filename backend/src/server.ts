@@ -165,9 +165,97 @@ app.post('/api/events', async (req, res) => {
         happenedAt: new Date()
       }
     });
+    // Apply auto-closure rules to close previously open stages when certain events occur
+    const getEventMode = (key: string) => {
+      return {
+        patient_in_or: 'in_out',
+        anesthesia: 'start_end',
+        positioning: 'start_end',
+        time_out: 'start_end',
+        surgery: 'start_end',
+        cme: 'in_out',
+        cleaning: 'in_out',
+        pharmacy: 'in_out',
+        clinical_engineering: 'in_out',
+        rpa: 'in_out',
+        room_setup: 'start_end',
+        transport_patient: 'start_end',
+        admission_cc: 'in_out',
+        anesthesia_team: 'in_out',
+        surgical_team: 'in_out'
+      }[key as keyof object];
+    };
+
+    const getEndActionForKey = (key: string) => {
+      const mode = getEventMode(key);
+      return mode === 'start_end' ? 'end' : 'out';
+    };
+
+    const ensureEndIfStarted = async (caseId: string, key: string) => {
+      const events = await prisma.event.findMany({ where: { caseId, eventKey: key }, orderBy: { happenedAt: 'asc' } });
+      const mode = getEventMode(key);
+      if (!mode) return;
+      const startAction = mode === 'start_end' ? 'start' : 'in';
+      const endAction = mode === 'start_end' ? 'end' : 'out';
+      const hasStart = events.some((e) => e.action === startAction);
+      const hasEnd = events.some((e) => e.action === endAction);
+      if (hasStart && !hasEnd) {
+        await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: new Date() } });
+      }
+    };
+
+    // Rules
+    try {
+      // If admission to CC happens, ensure transport is ended
+      if (event.eventKey === 'admission_cc' && event.action === 'in') {
+        await ensureEndIfStarted(caseId, 'transport_patient');
+      }
+
+      // If patient enters OR, finalize admission and transport
+      if (event.eventKey === 'patient_in_or' && event.action === 'in') {
+        await ensureEndIfStarted(caseId, 'admission_cc');
+        await ensureEndIfStarted(caseId, 'transport_patient');
+      }
+
+      // When surgery starts, finalize time_out and positioning
+      if (event.eventKey === 'surgery' && event.action === 'start') {
+        await ensureEndIfStarted(caseId, 'time_out');
+        await ensureEndIfStarted(caseId, 'positioning');
+      }
+
+      // When cleaning starts, finalize all previous stages
+      if (event.eventKey === 'cleaning' && event.action === 'in') {
+        const toClose = ['transport_patient','admission_cc','patient_in_or','anesthesia','positioning','time_out','surgery','cme','pharmacy','clinical_engineering','rpa','room_setup'];
+        for (const key of toClose) {
+          await ensureEndIfStarted(caseId, key);
+        }
+      }
+
+      // When room setup (montagem) starts, finalize all previous stages as well
+      if (event.eventKey === 'room_setup' && event.action === 'start') {
+        const toClose = ['transport_patient','admission_cc','patient_in_or','anesthesia','positioning','time_out','surgery','cme','pharmacy','clinical_engineering','rpa'];
+        for (const key of toClose) {
+          await ensureEndIfStarted(caseId, key);
+        }
+      }
+    } catch (closureError) {
+      console.error('Auto-closure error:', closureError);
+    }
+
     res.status(201).json(event);
   } catch (error) {
     res.status(400).json({ error: 'Failed to create event' });
+  }
+});
+
+// Delete room
+app.delete('/api/rooms/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    await prisma.room.delete({ where: { id: roomId } });
+    res.status(204).send();
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete room' });
   }
 });
 
