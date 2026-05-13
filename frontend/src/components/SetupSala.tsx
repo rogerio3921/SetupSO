@@ -611,21 +611,21 @@ export default function SetupSala() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleOpenRoomCase(room.id); }}
-                  className="sm:flex-1 w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-blue-700 hover:bg-blue-800 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   {openingRoomId === room.id ? 'Abrindo...' : 'Abrir'}
                 </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleEditRoom(room); }}
-                  className="sm:flex-1 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   Editar
                 </button>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleCloseCase(room); }}
-                  className="sm:flex-1 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white text-xs font-black px-3 py-2 rounded-full"
+                  className="sm:flex-1 w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-full"
                 >
                   Concluir
                 </button>
