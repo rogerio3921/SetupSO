@@ -206,6 +206,40 @@ app.post('/api/events', async (req, res) => {
 
     // Rules
     try {
+      // Generic auto-closure: when an 'in' occurs for an in_out mode, close other in_out stages
+      const createdMode = getEventMode(event.eventKey);
+      if ((event.action === 'in' || event.action === 'start') && createdMode) {
+        const allKeys = Object.keys({
+          patient_in_or: 'in_out',
+          anesthesia: 'start_end',
+          positioning: 'start_end',
+          time_out: 'start_end',
+          surgery: 'start_end',
+          cme: 'in_out',
+          cleaning: 'in_out',
+          pharmacy: 'in_out',
+          clinical_engineering: 'in_out',
+          rpa: 'in_out',
+          room_setup: 'start_end',
+          transport_patient: 'start_end',
+          admission_cc: 'in_out',
+          anesthesia_team: 'in_out',
+          surgical_team: 'in_out'
+        });
+
+        for (const key of allKeys) {
+          const mode = getEventMode(key);
+          if (!mode) continue;
+          // if current event is 'in' close other in_out stages, if 'start' close other start_end
+          if (event.action === 'in' && mode === 'in_out' && key !== event.eventKey) {
+            await ensureEndIfStarted(caseId, key);
+          }
+          if (event.action === 'start' && mode === 'start_end' && key !== event.eventKey) {
+            await ensureEndIfStarted(caseId, key);
+          }
+        }
+      }
+
       // If admission to CC happens, ensure transport is ended
       if (event.eventKey === 'admission_cc' && event.action === 'in') {
         await ensureEndIfStarted(caseId, 'transport_patient');
@@ -269,6 +303,57 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
     res.json(events);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch events' });
+  }
+});
+
+// Close a case: ensure all open stages are ended and mark case closed
+app.post('/api/cases/:caseId/close', async (req, res) => {
+  try {
+    const { caseId } = req.params;
+
+    const getEventMode = (key: string) => {
+      return {
+        patient_in_or: 'in_out',
+        anesthesia: 'start_end',
+        positioning: 'start_end',
+        time_out: 'start_end',
+        surgery: 'start_end',
+        cme: 'in_out',
+        cleaning: 'in_out',
+        pharmacy: 'in_out',
+        clinical_engineering: 'in_out',
+        rpa: 'in_out',
+        room_setup: 'start_end',
+        transport_patient: 'start_end',
+        admission_cc: 'in_out',
+        anesthesia_team: 'in_out',
+        surgical_team: 'in_out'
+      }[key as keyof object];
+    };
+
+    const ensureEndIfStarted = async (caseId: string, key: string) => {
+      const events = await prisma.event.findMany({ where: { caseId, eventKey: key }, orderBy: { happenedAt: 'asc' } });
+      const mode = getEventMode(key);
+      if (!mode) return;
+      const startAction = mode === 'start_end' ? 'start' : 'in';
+      const endAction = mode === 'start_end' ? 'end' : 'out';
+      const hasStart = events.some((e) => e.action === startAction);
+      const hasEnd = events.some((e) => e.action === endAction);
+      if (hasStart && !hasEnd) {
+        await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: new Date() } });
+      }
+    };
+
+    const allKeys = ['transport_patient','admission_cc','patient_in_or','anesthesia','positioning','time_out','surgery','cme','cleaning','pharmacy','clinical_engineering','rpa','room_setup','anesthesia_team','surgical_team'];
+
+    for (const key of allKeys) {
+      await ensureEndIfStarted(caseId, key);
+    }
+
+    const updated = await prisma.case.update({ where: { id: caseId }, data: { status: 'closed' }, include: { events: true } });
+    res.json(updated);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to close case' });
   }
 });
 
