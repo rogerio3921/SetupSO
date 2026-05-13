@@ -1093,6 +1093,7 @@ export default function SetupSala() {
                   <div className="flex gap-2">
                     <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditRoom}>Salvar</button>
                     <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setEditingRoom(null)}>Cancelar</button>
+                  </div>
                 </div>
               </div>
             </div>
