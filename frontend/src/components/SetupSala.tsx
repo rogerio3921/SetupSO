@@ -17,6 +17,12 @@ interface PatientOption {
   noticeNumber?: string | null;
   roomId?: string | null;
   status?: string;
+  procedureName?: string | null;
+  surgeonName?: string | null;
+  attendanceNumber?: string | null;
+  birthDate?: string | null;
+  allergies?: string | null;
+  estimatedMinutes?: number | null;
 }
 
 interface SetupTimes {
@@ -70,7 +76,7 @@ export default function SetupSala() {
   const [editValue, setEditValue] = useState('');
   const [openingRoomId, setOpeningRoomId] = useState<string | null>(null);
   const [caseEvents, setCaseEvents] = useState<any[]>([]);
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editingRoom, setEditingRoom] = useState<RoomSetup | null>(null);
   const [editingRoomPatientId, setEditingRoomPatientId] = useState<string>('');
   const [editingRoomPatientQuery, setEditingRoomPatientQuery] = useState<string>('');
   const [editEventId, setEditEventId] = useState<string | null>(null);
@@ -204,7 +210,7 @@ export default function SetupSala() {
     }
   };
 
-  const handleEditRoom = async (room: Room) => {
+  const handleEditRoom = async (room: RoomSetup) => {
     setEditingRoom(room);
     setEditValue(room.name || '');
     // ensure patients list is loaded
