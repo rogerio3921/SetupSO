@@ -827,37 +827,112 @@ export default function SetupSala() {
         })}
       </div>
 
-      
-          {showEditEventModal && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                <h3 className="text-lg font-bold mb-3">Editar horário do evento</h3>
-                <label className="text-xs text-slate-500">Data e hora (UTC)</label>
+      {/* Edit Event Modal */}
+      {showEditEventModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-3">Editar horário do evento</h3>
+            <label className="text-xs text-slate-500">Data e hora (UTC)</label>
+            <input
+              type="datetime-local"
+              className="w-full p-2 border rounded mb-3"
+              value={editEventTime}
+              onChange={(e) => setEditEventTime(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditEvent}>Salvar</button>
+              <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setShowEditEventModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Room Modal */}
+      {editingRoom && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
+            <h3 className="text-lg font-bold mb-3">Editar Sala {editingRoom.code}</h3>
+            <label className="text-xs text-slate-500">Nome</label>
+            <input className="w-full p-2 border rounded mb-3" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-slate-500">Pesquisar paciente</label>
                 <input
-                  type="datetime-local"
-                  className="w-full p-2 border rounded mb-3"
-                  value={editEventTime}
-                  onChange={(e) => setEditEventTime(e.target.value)}
+                  className="w-full p-2 border rounded mb-2"
+                  placeholder="Nome, prontuário ou parte do nome"
+                  value={editingRoomPatientQuery}
+                  onChange={(e) => setEditingRoomPatientQuery(e.target.value)}
                 />
-                <div className="flex gap-2">
-                  <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditEvent}>Salvar</button>
-                  <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setShowEditEventModal(false)}>Cancelar</button>
+                <div className="border rounded max-h-64 overflow-auto p-1">
+                  {patients
+                    .filter((p) => {
+                      const q = editingRoomPatientQuery.trim().toLowerCase();
+                      if (!q) return true;
+                      return (p.fullName || '').toLowerCase().includes(q) || String(p.noticeNumber || '').includes(q);
+                    })
+                    .map((patient) => (
+                      <div
+                        key={patient.id}
+                        onClick={() => setEditingRoomPatientId(patient.id)}
+                        className={`p-2 rounded mb-1 cursor-pointer hover:bg-slate-100 flex justify-between items-center ${editingRoomPatientId === patient.id ? 'bg-slate-200 border border-slate-300' : ''}`}
+                      >
+                        <div>
+                          <div className="font-bold">{patient.fullName}</div>
+                          <div className="text-xs text-slate-500">{patient.noticeNumber ? `Prontuário: ${patient.noticeNumber}` : ''}</div>
+                        </div>
+                        {editingRoomPatientId === patient.id && (
+                          <div className="text-xs text-slate-700 font-bold">Selecionado</div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">Paciente selecionado</label>
+                <div className="p-3 border rounded h-40">
+                  {editingRoomPatientId ? (
+                    (() => {
+                      const p = patients.find((x) => x.id === editingRoomPatientId);
+                      if (!p) return <div className="text-sm text-slate-500">Carregando...</div>;
+                      return (
+                        <div>
+                          <div className="font-bold text-slate-900">{p.fullName}</div>
+                          <div className="text-xs text-slate-500">{p.noticeNumber ? `Prontuário: ${p.noticeNumber}` : ''}</div>
+                          <div className="text-sm mt-2">Procedimento: {p.procedureName || '—'}</div>
+                          <div className="text-sm">Cirurgião: {p.surgeonName || '—'}</div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-sm text-slate-500">Nenhum paciente selecionado</div>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditRoom}>Salvar</button>
+                  <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setEditingRoom(null)}>Cancelar</button>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+      )}
 
-          {/* Botão Salvar */}
-          <div className="mt-6 flex gap-2">
-            <button className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all">
-              ✓ Salvar Alterações
-            </button>
-            <button
-              onClick={() => setSelectedRoom(null)}
-              className="flex-1 bg-slate-300 hover:bg-slate-400 text-slate-900 font-bold py-2 px-4 rounded-lg transition-all"
-            >
-              Próxima Sala
-            </button>
+      {/* Schedule Modal */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-lg font-bold mb-3">Agendar paciente</h3>
+            <label className="text-xs text-slate-500">Paciente</label>
+            <select className="w-full p-2 border rounded mb-3" value={schedulePatientId || ''} onChange={(e) => setSchedulePatientId(e.target.value)}>
+              <option value="">— selecione —</option>
+              {patients.map((p) => (<option key={p.id} value={p.id}>{p.fullName} {p.noticeNumber ? `(${p.noticeNumber})` : ''}</option>))}
+            </select>
+            <label className="text-xs text-slate-500">Hora</label>
+            <input type="time" className="w-full p-2 border rounded mb-3" value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} />
+            <div className="flex gap-2">
+              <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitSchedule}>Agendar</button>
+              <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setShowScheduleModal(false)}>Cancelar</button>
+            </div>
           </div>
         </div>
       )}
