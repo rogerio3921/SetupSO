@@ -819,7 +819,47 @@ export default function SetupSala() {
                     </div>
                   </div>
 
-                  {/* resumo / históricos e campos seguem — para brevidade, utilizamos o mesmo layout já existente */}
+                  <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="bg-white rounded-xl border border-slate-200 p-3">
+                      <p className="text-xs font-bold text-slate-500 mb-2">Resumo da sala</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <span className="block text-slate-500">Paciente</span>
+                          <span className="font-bold text-slate-900">{room.patientName || '—'}</span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <span className="block text-slate-500">Procedimento</span>
+                          <span className="font-bold text-slate-900">{room.procedureName || '—'}</span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <span className="block text-slate-500">Cirurgião</span>
+                          <span className="font-bold text-slate-900">{room.surgeonName || '—'}</span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <span className="block text-slate-500">Previsto</span>
+                          <span className="font-bold text-slate-900">{room.scheduledStart || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl border border-slate-200 p-3">
+                      <p className="text-xs font-bold text-slate-500 mb-2">Histórico e movimentações</p>
+                      <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                        {roomCaseEvents.map((event) => (
+                          <div key={event.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs">
+                            <div>
+                              <p className="font-black text-slate-800">{event.eventKey}</p>
+                              <p className="text-slate-500">{event.action} {event.auto ? '• auto' : '• manual'}</p>
+                            </div>
+                            <span className="font-bold text-slate-600">{formatEventTime(event.happenedAt)}</span>
+                          </div>
+                        ))}
+                        {roomCaseEvents.length === 0 && (
+                          <p className="text-slate-500 italic">Nenhuma movimentação registrada</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
