@@ -72,6 +72,7 @@ export default function SetupSala() {
   const [caseEvents, setCaseEvents] = useState<any[]>([]);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [editingRoomPatientId, setEditingRoomPatientId] = useState<string>('');
+  const [editingRoomPatientQuery, setEditingRoomPatientQuery] = useState<string>('');
   const [editEventId, setEditEventId] = useState<string | null>(null);
   const [editEventTime, setEditEventTime] = useState<string>('');
   const [showEditEventModal, setShowEditEventModal] = useState(false);
@@ -206,7 +207,18 @@ export default function SetupSala() {
   const handleEditRoom = async (room: Room) => {
     setEditingRoom(room);
     setEditValue(room.name || '');
-    const currentPatient = patients.find((patient) => patient.roomId === room.id && patient.status === 'scheduled');
+    // ensure patients list is loaded
+    if (!patients || patients.length === 0) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${API_URL}/patients`, { headers: { Authorization: `Bearer ${token}` } });
+        setPatients(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Erro ao carregar pacientes para edição:', err);
+      }
+    }
+
+    const currentPatient = (patients || []).find((patient) => patient.roomId === room.id && patient.status === 'scheduled');
     setEditingRoomPatientId(currentPatient?.id || '');
   };
 
@@ -219,11 +231,30 @@ export default function SetupSala() {
       setRooms((current) => current.map((r) => r.id === response.data.id ? { ...r, name: response.data.name } : r));
 
       if (editingRoomPatientId) {
-        await axios.patch(
+        // assign patient to room and mark as scheduled
+        const patientPatch = await axios.patch(
           `${API_URL}/patients/${editingRoomPatientId}`,
           { roomId: editingRoom.id, status: 'scheduled' },
           { headers }
         );
+
+        // also update the active case with patient details if case exists
+        if (editingRoom.caseId) {
+          const patientData = patientPatch.data;
+          await axios.patch(
+            `${API_URL}/cases/${editingRoom.caseId}`,
+            {
+              patientFullName: patientData.fullName || null,
+              noticeNumber: patientData.noticeNumber || null,
+              procedureName: patientData.procedureName || null,
+              surgeonName: patientData.surgeonName || null,
+              attendanceNumber: patientData.attendanceNumber || null,
+              birthDate: patientData.birthDate || null,
+              allergies: patientData.allergies || null
+            },
+            { headers }
+          );
+        }
       }
 
       setEditingRoom(null);
@@ -1072,29 +1103,70 @@ export default function SetupSala() {
           {/* Edit Room Modal */}
           {editingRoom && (
             <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
                 <h3 className="text-lg font-bold mb-3">Editar Sala {editingRoom.code}</h3>
                 <label className="text-xs text-slate-500">Nome</label>
                 <input className="w-full p-2 border rounded mb-3" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-                <div className="flex gap-2">
-                  <label className="text-xs text-slate-500">Paciente</label>
-                  <select
-                    className="w-full p-2 border rounded mb-3"
-                    value={editingRoomPatientId}
-                    onChange={(e) => setEditingRoomPatientId(e.target.value)}
-                  >
-                    <option value="">— sem paciente vinculado —</option>
-                    {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.fullName}{patient.noticeNumber ? ` (${patient.noticeNumber})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex gap-2">
-                    <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditRoom}>Salvar</button>
-                    <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setEditingRoom(null)}>Cancelar</button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-slate-500">Pesquisar paciente</label>
+                      <input
+                        className="w-full p-2 border rounded mb-2"
+                        placeholder="Nome, prontuário ou parte do nome"
+                        value={editingRoomPatientQuery}
+                        onChange={(e) => setEditingRoomPatientQuery(e.target.value)}
+                      />
+                      <div className="border rounded max-h-64 overflow-auto p-1">
+                        {patients
+                          .filter((p) => {
+                            const q = editingRoomPatientQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            return (p.fullName || '').toLowerCase().includes(q) || String(p.noticeNumber || '').includes(q);
+                          })
+                          .map((patient) => (
+                            <div
+                              key={patient.id}
+                              onClick={() => setEditingRoomPatientId(patient.id)}
+                              className={`p-2 rounded mb-1 cursor-pointer hover:bg-slate-100 flex justify-between items-center ${editingRoomPatientId === patient.id ? 'bg-slate-200 border border-slate-300' : ''}`}
+                            >
+                              <div>
+                                <div className="font-bold">{patient.fullName}</div>
+                                <div className="text-xs text-slate-500">{patient.noticeNumber ? `Prontuário: ${patient.noticeNumber}` : ''}</div>
+                              </div>
+                              {editingRoomPatientId === patient.id && (
+                                <div className="text-xs text-slate-700 font-bold">Selecionado</div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500">Paciente selecionado</label>
+                      <div className="p-3 border rounded h-40">
+                        {editingRoomPatientId ? (
+                          (() => {
+                            const p = patients.find((x) => x.id === editingRoomPatientId);
+                            if (!p) return <div className="text-sm text-slate-500">Carregando...</div>;
+                            return (
+                              <div>
+                                <div className="font-bold text-slate-900">{p.fullName}</div>
+                                <div className="text-xs text-slate-500">{p.noticeNumber ? `Prontuário: ${p.noticeNumber}` : ''}</div>
+                                <div className="text-sm mt-2">Procedimento: {p.procedureName || '—'}</div>
+                                <div className="text-sm">Cirurgião: {p.surgeonName || '—'}</div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="text-sm text-slate-500">Nenhum paciente selecionado</div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 mt-4">
+                        <button className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold hover:bg-slate-800" onClick={submitEditRoom}>Salvar</button>
+                        <button className="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-200" onClick={() => setEditingRoom(null)}>Cancelar</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
               </div>
             </div>
           )}
