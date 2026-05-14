@@ -166,8 +166,13 @@ export default function Pacientes() {
       );
 
       await fetchAll();
-    } catch (error) {
-      console.error('Erro ao criar agendamento', error);
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.message;
+      if (errorMsg) {
+        alert(errorMsg);
+      } else {
+        console.error('Erro ao criar agendamento', error);
+      }
     }
   };
 

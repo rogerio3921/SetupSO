@@ -43,8 +43,13 @@ export default function Scheduling() {
       setSelectedPatient(null);
       setSelectedRoom(null);
       await fetchData();
-    } catch (err) {
-      console.error('Erro ao criar agendamento:', err);
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.message;
+      if (errorMsg) {
+        alert(errorMsg);
+      } else {
+        console.error('Erro ao criar agendamento:', err);
+      }
     }
   };
 

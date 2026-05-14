@@ -154,10 +154,14 @@ export default function SetupSala() {
       if (roomsNeedingSync.length > 0) {
         const syncedCases = await Promise.all(
           roomsNeedingSync.map(async (room: Room) => {
-            const response = await axios.get(`${API_URL}/rooms/${room.id}/case`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            return response.data;
+            try {
+              const response = await axios.get(`${API_URL}/rooms/${room.id}/case`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              return response.data;
+            } catch {
+              return null;
+            }
           })
         );
 
@@ -202,9 +206,13 @@ export default function SetupSala() {
     try {
       setOpeningRoomId(roomId);
       const token = localStorage.getItem('token');
-      await axios.get(`${API_URL}/rooms/${roomId}/case`, {
+      const response = await axios.get(`${API_URL}/rooms/${roomId}/case`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!response.data) {
+        alert('Nenhum paciente agendado para esta sala. Agende um paciente primeiro.');
+        return;
+      }
       await fetchRooms();
       setSelectedRoom(roomId);
     } catch (error) {
@@ -241,29 +249,46 @@ export default function SetupSala() {
       setRooms((current) => current.map((r) => r.id === response.data.id ? { ...r, name: response.data.name } : r));
 
       if (editingRoomPatientId) {
-        // assign patient to room and mark as scheduled
-        const patientPatch = await axios.patch(
-          `${API_URL}/patients/${editingRoomPatientId}`,
-          { roomId: editingRoom.id, status: 'scheduled' },
-          { headers }
-        );
+        // Check if patient is already in another room
+        const selectedPatient = patients.find((p) => p.id === editingRoomPatientId);
+        if (selectedPatient && selectedPatient.roomId && selectedPatient.roomId !== editingRoom.id && selectedPatient.status === 'scheduled') {
+          const existingRoom = rooms.find((r) => r.id === selectedPatient.roomId);
+          alert(`Paciente já está alocado na sala ${existingRoom?.code || existingRoom?.name || 'outra'}. Conclua o caso atual antes de mover para outra sala.`);
+          return;
+        }
 
-        // also update the active case with patient details if case exists
-        if (editingRoom.caseId) {
-          const patientData = patientPatch.data;
-          await axios.patch(
-            `${API_URL}/cases/${editingRoom.caseId}`,
-            {
-              patientFullName: patientData.fullName || null,
-              noticeNumber: patientData.noticeNumber || null,
-              procedureName: patientData.procedureName || null,
-              surgeonName: patientData.surgeonName || null,
-              attendanceNumber: patientData.attendanceNumber || null,
-              birthDate: patientData.birthDate || null,
-              allergies: patientData.allergies || null
-            },
+        // assign patient to room and mark as scheduled
+        try {
+          const patientPatch = await axios.patch(
+            `${API_URL}/patients/${editingRoomPatientId}`,
+            { roomId: editingRoom.id, status: 'scheduled' },
             { headers }
           );
+
+          // also update the active case with patient details if case exists
+          if (editingRoom.caseId) {
+            const patientData = patientPatch.data;
+            await axios.patch(
+              `${API_URL}/cases/${editingRoom.caseId}`,
+              {
+                patientFullName: patientData.fullName || null,
+                noticeNumber: patientData.noticeNumber || null,
+                procedureName: patientData.procedureName || null,
+                surgeonName: patientData.surgeonName || null,
+                attendanceNumber: patientData.attendanceNumber || null,
+                birthDate: patientData.birthDate || null,
+                allergies: patientData.allergies || null
+              },
+              { headers }
+            );
+          }
+        } catch (err: any) {
+          const errorMsg = err?.response?.data?.message;
+          if (errorMsg) {
+            alert(errorMsg);
+            return;
+          }
+          throw err;
         }
       }
 
@@ -287,13 +312,15 @@ export default function SetupSala() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      // Request server to close the case and auto-end all open stages
+      // Request server to close the case, auto-end all open stages, release patient, and clear room
       await axios.post(`${API_URL}/cases/${closingRoom.caseId}/close`, {}, { headers });
-      await fetchRooms();
+      
+      // Clear local state and refresh
+      setCaseEvents([]);
       if (selectedRoom === closingRoom.id) {
-        await fetchCaseEvents(closingRoom.caseId);
         setSelectedRoom(null);
       }
+      await fetchRooms();
     } catch (error) {
       console.error('Erro ao concluir caso:', error);
     } finally {
@@ -318,8 +345,13 @@ export default function SetupSala() {
       setShowScheduleModal(false);
       setSchedulePatientId(null);
       await fetchRooms();
-    } catch (error) {
-      console.error('Erro ao criar agendamento:', error);
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.message;
+      if (errorMsg) {
+        alert(errorMsg);
+      } else {
+        console.error('Erro ao criar agendamento:', error);
+      }
     }
   };
 

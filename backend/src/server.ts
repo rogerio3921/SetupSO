@@ -92,6 +92,11 @@ app.get('/api/rooms/:roomId/case', async (req, res) => {
     });
 
     if (!caseRecord) {
+      // Only create a new case if there's a scheduled patient for this room
+      if (!scheduledPatient) {
+        return res.json(null);
+      }
+
       const room = await prisma.room.findUnique({ where: { id: roomId } });
       const count = await prisma.case.count({ where: { roomId } });
       const code = `${room?.code?.replace(/\s/g, '') || 'SALA'}-${new Date().toISOString().split('T')[0]}-${String(count + 1).padStart(2, '0')}`;
@@ -103,14 +108,15 @@ app.get('/api/rooms/:roomId/case', async (req, res) => {
           status: 'active',
           patientPhase: 'open',
           roomPhase: 'open',
-          patientFullName: scheduledPatient?.fullName || null,
-          noticeNumber: scheduledPatient?.noticeNumber || null,
-          procedureName: scheduledPatient?.procedureName || null,
-          surgeonName: scheduledPatient?.surgeonName || null,
-          attendanceNumber: scheduledPatient?.attendanceNumber || null,
-          birthDate: scheduledPatient?.birthDate || null,
-          allergies: scheduledPatient?.allergies || null,
-          plannedSurgeryTime: scheduledPatient?.plannedSurgeryTime || null
+          patientFullName: scheduledPatient.fullName || null,
+          noticeNumber: scheduledPatient.noticeNumber || null,
+          procedureName: scheduledPatient.procedureName || null,
+          surgeonName: scheduledPatient.surgeonName || null,
+          attendanceNumber: scheduledPatient.attendanceNumber || null,
+          birthDate: scheduledPatient.birthDate || null,
+          allergies: scheduledPatient.allergies || null,
+          plannedSurgeryTime: scheduledPatient.plannedSurgeryTime || null,
+          referenceDate: new Date().toISOString().split('T')[0]
         },
         include: { events: true }
       });
@@ -337,7 +343,7 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
   }
 });
 
-// Close a case: ensure all open stages are ended and mark case closed
+// Close a case: ensure all open stages are ended, mark case closed, release patient, and prepare room for next
 app.post('/api/cases/:caseId/close', async (req, res) => {
   try {
     const { caseId } = req.params;
@@ -381,7 +387,36 @@ app.post('/api/cases/:caseId/close', async (req, res) => {
       await ensureEndIfStarted(caseId, key);
     }
 
-    const updated = await prisma.case.update({ where: { id: caseId }, data: { status: 'closed' }, include: { events: true } });
+    // Close the case
+    const updated = await prisma.case.update({
+      where: { id: caseId },
+      data: { status: 'closed', patientPhase: 'closed', roomPhase: 'closed' },
+      include: { events: true }
+    });
+
+    // Release the patient: find patient assigned to this room and mark as completed
+    const roomId = updated.roomId;
+    const assignedPatients = await prisma.patient.findMany({
+      where: { roomId, status: 'scheduled' }
+    });
+
+    for (const patient of assignedPatients) {
+      await prisma.patient.update({
+        where: { id: patient.id },
+        data: { status: 'completed', roomId: null }
+      });
+    }
+
+    // Also update any schedules for this room that are still "scheduled" to "completed"
+    await prisma.surgerySchedule.updateMany({
+      where: {
+        roomId,
+        status: 'scheduled',
+        patientId: { in: assignedPatients.map((p) => p.id) }
+      },
+      data: { status: 'completed' }
+    });
+
     res.json(updated);
   } catch (error) {
     res.status(400).json({ error: 'Failed to close case' });
@@ -507,6 +542,27 @@ app.post('/api/patients', authMiddleware, async (req, res) => {
 app.patch('/api/patients/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
+    const { roomId, status } = req.body;
+
+    // Validate: patient cannot be assigned to a room if already active in another
+    if (roomId && status === 'scheduled') {
+      const existingPatient = await prisma.patient.findUnique({ where: { id: patientId } });
+      
+      // Check if patient is already scheduled in a different room with an active case
+      if (existingPatient && existingPatient.roomId && existingPatient.roomId !== roomId && existingPatient.status === 'scheduled') {
+        const activeCase = await prisma.case.findFirst({
+          where: { roomId: existingPatient.roomId, status: 'active' }
+        });
+        if (activeCase) {
+          const existingRoom = await prisma.room.findUnique({ where: { id: existingPatient.roomId } });
+          return res.status(400).json({
+            error: 'PATIENT_ALREADY_IN_ROOM',
+            message: `Paciente já está alocado na sala ${existingRoom?.code || existingRoom?.name || existingPatient.roomId}. Conclua o caso atual antes de mover para outra sala.`
+          });
+        }
+      }
+    }
+
     const patient = await prisma.patient.update({
       where: { id: patientId },
       data: req.body
@@ -581,7 +637,32 @@ app.post('/api/schedules', authMiddleware, async (req, res) => {
   try {
     const { patientId, roomId, scheduledStart, procedureName, estimatedMinutes, source } = req.body;
 
+    // Validate: patient cannot be in another active room
     const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+    if (patient && patient.roomId && patient.roomId !== roomId && patient.status === 'scheduled') {
+      const existingRoom = await prisma.room.findUnique({ where: { id: patient.roomId } });
+      return res.status(400).json({
+        error: 'PATIENT_ALREADY_IN_ROOM',
+        message: `Paciente já está alocado na sala ${existingRoom?.code || existingRoom?.name || patient.roomId}. Conclua o caso atual antes de alocar em outra sala.`
+      });
+    }
+
+    // Check if there's an active case with this patient in another room
+    const activeCase = await prisma.case.findFirst({
+      where: {
+        status: 'active',
+        roomId: { not: roomId },
+        patientFullName: patient?.fullName || undefined
+      }
+    });
+    if (activeCase && patient?.fullName) {
+      const existingRoom = await prisma.room.findUnique({ where: { id: activeCase.roomId } });
+      return res.status(400).json({
+        error: 'PATIENT_ALREADY_IN_ROOM',
+        message: `Paciente já possui caso ativo na sala ${existingRoom?.code || existingRoom?.name || activeCase.roomId}. Conclua o caso antes de agendar em outra sala.`
+      });
+    }
+
     const timing = procedureName
       ? await prisma.procedureTiming.findUnique({ where: { procedureName } })
       : null;
@@ -780,9 +861,28 @@ function computeAverage(values: Array<number | null | undefined>) {
   return Math.round(filtered.reduce((sum, value) => sum + value, 0) / filtered.length);
 }
 
-function computeDelayMs(events: any[], plannedStart: string | null | undefined, eventKey: string, action: string) {
+function computeDelayMs(events: any[], plannedStart: string | null | undefined, eventKey: string, action: string, referenceDate?: string | Date | null) {
   if (!plannedStart) return null;
-  const planned = new Date(plannedStart);
+
+  // plannedSurgeryTime can be "HH:MM" or a full ISO string
+  let planned: Date;
+  if (/^\d{2}:\d{2}$/.test(plannedStart)) {
+    // It's just a time like "08:00", we need a reference date
+    // Use the first event date or referenceDate or today
+    const refDate = referenceDate
+      ? new Date(referenceDate)
+      : events.length > 0
+        ? new Date(events[0].happenedAt)
+        : new Date();
+    const [hours, minutes] = plannedStart.split(':').map(Number);
+    planned = new Date(refDate);
+    planned.setHours(hours, minutes, 0, 0);
+  } else {
+    planned = new Date(plannedStart);
+  }
+
+  if (isNaN(planned.getTime())) return null;
+
   const actual = [...events]
     .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
     .find((event) => event.eventKey === eventKey && event.action === action)?.happenedAt;
@@ -800,22 +900,25 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
 
     const completedCases = cases.filter((item) => item.events.some((event) => event.eventKey === 'surgery' && event.action === 'end'));
     const activeCases = cases.filter((item) => item.status === 'active');
-    const inPrepCases = cases.filter((item) => item.roomPhase === 'open' || item.patientPhase === 'open');
+    const inPrepCases = cases.filter((item) => item.status === 'active' && (item.roomPhase === 'open' || item.patientPhase === 'open'));
 
-    const avgTransportToOr = computeAverage(cases.map((item) => computeStageDurationMs(item.events, 'transport_patient')));
-    const avgOr = computeAverage(cases.map((item) => computeStageDurationMs(item.events, 'patient_in_or')));
-    const avgAnesthesia = computeAverage(cases.map((item) => computeStageDurationMs(item.events, 'anesthesia')));
-    const avgSurgery = computeAverage(cases.map((item) => computeStageDurationMs(item.events, 'surgery')));
-    const avgRpa = computeAverage(cases.map((item) => computeStageDurationMs(item.events, 'rpa')));
-    const avgTotalCc = computeAverage(cases.map((item) => computeSpanMs(
+    // Only use completed cases (with surgery end) for average calculations to avoid skewing with ongoing cases
+    const casesForAverages = completedCases.length > 0 ? completedCases : cases;
+
+    const avgTransportToOr = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'transport_patient')));
+    const avgOr = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'patient_in_or')));
+    const avgAnesthesia = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'anesthesia')));
+    const avgSurgery = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'surgery')));
+    const avgRpa = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'rpa')));
+    const avgTotalCc = computeAverage(casesForAverages.map((item) => computeSpanMs(
       item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
       item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
     )));
 
     const plannedCount = cases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
-    const patientDelay = computeAverage(cases.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in')));
-    const anesthesiaDelay = computeAverage(cases.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in')));
-    const surgeryTeamDelay = computeAverage(cases.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in')));
+    const patientDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
+    const anesthesiaDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in', item.referenceDate || item.createdAt)));
+    const surgeryTeamDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in', item.referenceDate || item.createdAt)));
 
     res.json({
       totalCases: cases.length,
