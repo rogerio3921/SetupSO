@@ -173,7 +173,12 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
 
   const formatEventTime = (value?: string) => {
     if (!value) return '—';
-    return new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date(value).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getStageEvents = (caseId?: string | null, stageKey?: string) => {

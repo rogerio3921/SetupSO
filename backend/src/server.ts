@@ -155,17 +155,43 @@ app.patch('/api/cases/:caseId', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   try {
     const { caseId, eventKey, action, auto, userId } = req.body;
-    const event = await prisma.event.create({
-      data: {
-        caseId,
-        eventKey,
-        action,
-        auto: auto || false,
-        userId,
-        happenedAt: new Date()
-      }
-    });
-    // Apply auto-closure rules to close previously open stages when certain events occur
+
+    const timelineOrder = [
+      'anesthesia_team',
+      'surgical_team',
+      'transport_patient',
+      'admission_cc',
+      'patient_in_or',
+      'anesthesia',
+      'positioning',
+      'time_out',
+      'surgery',
+      'cme',
+      'cleaning',
+      'pharmacy',
+      'clinical_engineering',
+      'rpa',
+      'room_setup'
+    ];
+
+    const stageLabels: Record<string, string> = {
+      anesthesia_team: 'Equipe anestésica',
+      surgical_team: 'Equipe cirúrgica',
+      transport_patient: 'Transporte paciente',
+      admission_cc: 'Admissão no Pré CC',
+      patient_in_or: 'Paciente em SO',
+      anesthesia: 'Anestesia',
+      positioning: 'Posicionamento',
+      time_out: 'Time out',
+      surgery: 'Cirurgia',
+      cme: 'CME',
+      cleaning: 'Limpeza',
+      pharmacy: 'Farmácia',
+      clinical_engineering: 'Engenharia clínica',
+      rpa: 'RPA',
+      room_setup: 'Montagem de Sala'
+    };
+
     const getEventMode = (key: string) => {
       return {
         patient_in_or: 'in_out',
@@ -191,6 +217,8 @@ app.post('/api/events', async (req, res) => {
       return mode === 'start_end' ? 'end' : 'out';
     };
 
+    const getPrimaryActionForMode = (mode: string) => (mode === 'start_end' ? 'start' : 'in');
+
     const ensureEndIfStarted = async (caseId: string, key: string) => {
       const events = await prisma.event.findMany({ where: { caseId, eventKey: key }, orderBy: { happenedAt: 'asc' } });
       const mode = getEventMode(key);
@@ -204,73 +232,76 @@ app.post('/api/events', async (req, res) => {
       }
     };
 
+    if (!auto && (action === 'start' || action === 'in')) {
+      const currentMode = getEventMode(eventKey);
+      const primaryAction = currentMode ? getPrimaryActionForMode(currentMode) : null;
+      const currentIndex = timelineOrder.indexOf(eventKey);
+
+      if (primaryAction && action === primaryAction && currentIndex > 0) {
+        const missingStages: string[] = [];
+
+        for (const previousKey of timelineOrder.slice(0, currentIndex)) {
+          const previousMode = getEventMode(previousKey);
+          if (!previousMode) continue;
+
+          const previousPrimaryAction = getPrimaryActionForMode(previousMode);
+          const previousEvents = await prisma.event.findMany({ where: { caseId, eventKey: previousKey }, orderBy: { happenedAt: 'asc' } });
+          const hasPrimaryEvent = previousEvents.some((eventItem) => eventItem.action === previousPrimaryAction);
+
+          if (!hasPrimaryEvent) {
+            missingStages.push(stageLabels[previousKey] || previousKey);
+          }
+        }
+
+        if (missingStages.length > 0) {
+          return res.status(400).json({
+            error: 'Stage sequence violation',
+            code: 'SEQUENCE_VIOLATION',
+            missingStages
+          });
+        }
+      }
+    }
+
+    const event = await prisma.event.create({
+      data: {
+        caseId,
+        eventKey,
+        action,
+        auto: auto || false,
+        userId,
+        happenedAt: new Date()
+      }
+    });
+
     // Rules
     try {
-      // Generic auto-closure: when an 'in' occurs for an in_out mode, close other in_out stages
-      const createdMode = getEventMode(event.eventKey);
-      if ((event.action === 'in' || event.action === 'start') && createdMode) {
-        const allKeys = Object.keys({
-          patient_in_or: 'in_out',
-          anesthesia: 'start_end',
-          positioning: 'start_end',
-          time_out: 'start_end',
-          surgery: 'start_end',
-          cme: 'in_out',
-          cleaning: 'in_out',
-          pharmacy: 'in_out',
-          clinical_engineering: 'in_out',
-          rpa: 'in_out',
-          room_setup: 'start_end',
-          transport_patient: 'start_end',
-          admission_cc: 'in_out',
-          anesthesia_team: 'in_out',
-          surgical_team: 'in_out'
-        });
+      const autoCloseTargets: Record<string, string[]> = {
+        'admission_cc:in': ['transport_patient'],
+        'patient_in_or:in': ['admission_cc', 'transport_patient'],
+        'surgery:start': ['time_out', 'positioning'],
+        'cleaning:in': [
+          'transport_patient',
+          'admission_cc',
+          'patient_in_or',
+          'anesthesia',
+          'positioning',
+          'time_out',
+          'surgery',
+          'cme',
+          'pharmacy',
+          'clinical_engineering',
+          'rpa',
+          'anesthesia_team',
+          'surgical_team'
+        ],
+        'rpa:in': ['cleaning'],
+        'room_setup:start': ['rpa']
+      };
 
-        for (const key of allKeys) {
-          const mode = getEventMode(key);
-          if (!mode) continue;
-          // if current event is 'in' close other in_out stages, if 'start' close other start_end
-          if (event.action === 'in' && mode === 'in_out' && key !== event.eventKey) {
-            await ensureEndIfStarted(caseId, key);
-          }
-          if (event.action === 'start' && mode === 'start_end' && key !== event.eventKey) {
-            await ensureEndIfStarted(caseId, key);
-          }
-        }
-      }
-
-      // If admission to CC happens, ensure transport is ended
-      if (event.eventKey === 'admission_cc' && event.action === 'in') {
-        await ensureEndIfStarted(caseId, 'transport_patient');
-      }
-
-      // If patient enters OR, finalize admission and transport
-      if (event.eventKey === 'patient_in_or' && event.action === 'in') {
-        await ensureEndIfStarted(caseId, 'admission_cc');
-        await ensureEndIfStarted(caseId, 'transport_patient');
-      }
-
-      // When surgery starts, finalize time_out and positioning
-      if (event.eventKey === 'surgery' && event.action === 'start') {
-        await ensureEndIfStarted(caseId, 'time_out');
-        await ensureEndIfStarted(caseId, 'positioning');
-      }
-
-      // When cleaning starts, finalize all previous stages
-      if (event.eventKey === 'cleaning' && event.action === 'in') {
-        const toClose = ['transport_patient','admission_cc','patient_in_or','anesthesia','positioning','time_out','surgery','cme','pharmacy','clinical_engineering','rpa','room_setup'];
-        for (const key of toClose) {
-          await ensureEndIfStarted(caseId, key);
-        }
-      }
-
-      // When room setup (montagem) starts, finalize all previous stages as well
-      if (event.eventKey === 'room_setup' && event.action === 'start') {
-        const toClose = ['transport_patient','admission_cc','patient_in_or','anesthesia','positioning','time_out','surgery','cme','pharmacy','clinical_engineering','rpa'];
-        for (const key of toClose) {
-          await ensureEndIfStarted(caseId, key);
-        }
+      const targets = autoCloseTargets[`${event.eventKey}:${event.action}`] || [];
+      for (const key of targets) {
+        await ensureEndIfStarted(caseId, key);
       }
     } catch (closureError) {
       console.error('Auto-closure error:', closureError);

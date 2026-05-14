@@ -85,6 +85,10 @@ export default function SetupSala() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [schedulePatientId, setSchedulePatientId] = useState<string | null>(null);
   const [scheduleTime, setScheduleTime] = useState('07:00');
+  const [showSequenceWarning, setShowSequenceWarning] = useState(false);
+  const [sequenceWarningMessage, setSequenceWarningMessage] = useState('');
+  const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
+  const [closingRoom, setClosingRoom] = useState<RoomSetup | null>(null);
 
   const delayReasons = [
     'Atraso no transporte',
@@ -274,15 +278,27 @@ export default function SetupSala() {
 
   const handleCloseCase = async (room: RoomSetup) => {
     if (!room.caseId) return;
+    setClosingRoom(room);
+    setShowCloseConfirmModal(true);
+  };
+
+  const confirmCloseCase = async () => {
+    if (!closingRoom?.caseId) return;
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       // Request server to close the case and auto-end all open stages
-      await axios.post(`${API_URL}/cases/${room.caseId}/close`, {}, { headers });
+      await axios.post(`${API_URL}/cases/${closingRoom.caseId}/close`, {}, { headers });
       await fetchRooms();
-      setSelectedRoom(null);
+      if (selectedRoom === closingRoom.id) {
+        await fetchCaseEvents(closingRoom.caseId);
+        setSelectedRoom(null);
+      }
     } catch (error) {
       console.error('Erro ao concluir caso:', error);
+    } finally {
+      setShowCloseConfirmModal(false);
+      setClosingRoom(null);
     }
   };
 
@@ -334,7 +350,13 @@ export default function SetupSala() {
       if (active?.caseId) {
         await fetchCaseEvents(active.caseId);
       }
-    } catch (error) {
+    } catch (error: any) {
+      const missingStages = error?.response?.data?.missingStages as string[] | undefined;
+      if (missingStages && missingStages.length > 0) {
+        setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
+        setShowSequenceWarning(true);
+        return;
+      }
       console.error('Erro ao registrar evento:', error);
     }
   };
@@ -366,10 +388,10 @@ export default function SetupSala() {
   };
 
   const timelineStages: TimelineStage[] = [
-    { seq: 1, key: 'anesthesia_team', label: 'Equipe anestesia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 1, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
     { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
     { seq: 3, key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 4, key: 'admission_cc', label: 'Admissão no CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+    { seq: 4, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
     { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
     { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
     { seq: 7, key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
@@ -426,7 +448,7 @@ export default function SetupSala() {
   };
 
   const formatDuration = (ms?: number | null) => {
-    if (ms === null || ms === undefined || Number.isNaN(ms)) return '—';
+    if (ms === null || ms === undefined || Number.isNaN(ms) || ms <= 0) return '—';
     const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
     const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
     const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
@@ -450,6 +472,40 @@ export default function SetupSala() {
       .filter((event) => event.caseId === caseId)
       .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())
       .slice(0, 12);
+  };
+
+  const getStagePrimaryAction = (stage: TimelineStage): TimelineActionKey => (stage.kind === 'start_end' ? 'start' : 'in');
+
+  const getMissingPreviousStages = (caseId: string | undefined, stage: TimelineStage) => {
+    if (!caseId) return [] as string[];
+
+    const stageIndex = timelineStages.findIndex((item) => item.key === stage.key);
+    if (stageIndex <= 0) return [] as string[];
+
+    return timelineStages
+      .slice(0, stageIndex)
+      .filter((previousStage) => {
+        const previousEvents = getStageEvents(caseId, previousStage.key);
+        const primaryAction = getStagePrimaryAction(previousStage);
+        return !previousEvents.some((event) => event.action === primaryAction);
+      })
+      .map((item) => item.label);
+  };
+
+  const handleStageAction = async (room: RoomSetup, stage: TimelineStage, action: TimelineActionKey) => {
+    if (!room.caseId) return;
+
+    const primaryAction = getStagePrimaryAction(stage);
+    if (action === primaryAction) {
+      const missingStages = getMissingPreviousStages(room.caseId, stage);
+      if (missingStages.length > 0) {
+        setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
+        setShowSequenceWarning(true);
+        return;
+      }
+    }
+
+    await recordEvent(room.caseId, stage.key, action);
   };
 
   const calculateDelay = (room: RoomSetup): { isDelayed: boolean; minutes: number } => {
@@ -732,43 +788,9 @@ export default function SetupSala() {
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:min-w-[220px]">
-                                {stage.kind === 'start_end' ? (
-                                  (() => {
-                                    const hasStart = !!startEvent;
-                                    const hasEnd = !!endEvent;
-                                    const disabled = !room.caseId || hasStart && hasEnd;
-                                    const primaryLabel = !hasStart ? 'Início' : hasStart && !hasEnd ? 'Fim' : 'Concluído';
-                                    const primaryAction: any = !hasStart ? 'start' : hasStart && !hasEnd ? 'end' : null;
-                                    return (
-                                      <>
-                                        <button
-                                          type="button"
-                                          disabled={disabled}
-                                          onClick={() => room.caseId && primaryAction && recordEvent(room.caseId, stage.key, primaryAction)}
-                                          className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
-                                            disabled
-                                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                                              : 'bg-green-600 text-white border-green-600 hover:bg-green-700'
-                                          }`}
-                                        >
-                                          {hasStart && !hasEnd ? `Fazer Fim` : primaryLabel}
-                                        </button>
-                                        {duration !== null && (
-                                          <div className="w-full px-3 py-2 rounded-lg bg-white border text-xs font-bold">
-                                            Duração: {formatDuration(duration)}
-                                          </div>
-                                        )}
-                                        {duration === null && (
-                                          <div className="invisible w-full px-3 py-2 rounded-lg border text-xs font-bold">
-                                            Duração: 00:00:00
-                                          </div>
-                                        )}
-                                      </>
-                                    );
-                                  })()
-                                ) : (
-                                  stage.actions.map((action) => {
+                              <div className="w-full sm:w-auto sm:min-w-[240px]">
+                                <div className="grid grid-cols-2 gap-2">
+                                  {stage.actions.map((action) => {
                                     const disabled = !room.caseId || getStageButtonDisabled(stage, stageEvents, action.action);
                                     const isPrimary = action.action === (stage.kind === 'start_end' ? 'start' : 'in');
                                     return (
@@ -776,7 +798,7 @@ export default function SetupSala() {
                                         key={`${stage.key}-${action.action}`}
                                         type="button"
                                         disabled={disabled}
-                                        onClick={() => room.caseId && recordEvent(room.caseId, stage.key, action.action)}
+                                        onClick={() => room.caseId && handleStageAction(room, stage, action.action)}
                                         className={`w-full px-3 py-2 rounded-lg text-xs font-bold transition-all border ${
                                           disabled
                                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
@@ -788,8 +810,11 @@ export default function SetupSala() {
                                         {stageEvents.some((event) => event.action === action.action) ? `✓ ${action.label}` : action.label}
                                       </button>
                                     );
-                                  })
-                                )}
+                                  })}
+                                </div>
+                                <div className="mt-2 px-3 py-2 rounded-lg bg-white border text-xs font-bold text-slate-700">
+                                  Duração: {formatDuration(duration)}
+                                </div>
                               </div>
                             </div>
 
@@ -1028,6 +1053,63 @@ export default function SetupSala() {
         </div>
       )}
 
+      {showSequenceWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-amber-200">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle className="text-amber-600" size={32} />
+              <h2 className="text-xl font-bold text-slate-900">Sequência obrigatória</h2>
+            </div>
+            <p className="text-sm text-slate-600 mb-6">{sequenceWarningMessage}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setShowSequenceWarning(false);
+                  setSequenceWarningMessage('');
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg transition-all"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCloseConfirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-emerald-200">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertCircle className="text-emerald-600" size={32} />
+              <h2 className="text-xl font-bold text-slate-900">Finalizar tudo</h2>
+            </div>
+            <p className="text-sm text-slate-600 mb-2">
+              Ao concluir, todas as etapas abertas desta sala serão finalizadas automaticamente.
+            </p>
+            <p className="text-sm text-slate-700 mb-6 font-bold">
+              Sala: {closingRoom?.code || '—'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmCloseCase}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg transition-all"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => {
+                  setShowCloseConfirmModal(false);
+                  setClosingRoom(null);
+                }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-2 px-4 rounded-lg transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Legenda de Status */}
       <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
         <p className="text-xs font-bold text-slate-600 mb-3">LEGENDA STATUS:</p>
@@ -1049,7 +1131,7 @@ export default function SetupSala() {
             <span className="text-xs">EM ATRASO</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-purple-400 rounded"></span>
+            <span className="w-3 h-3 bg-slate-500 rounded"></span>
             <span className="text-xs">INICIADO CIRURGIA</span>
           </div>
         </div>
