@@ -9,6 +9,8 @@ import SalasCirurgicas from './components/SalasCirurgicas';
 import Reports from './components/Reports';
 import Pacientes from './components/Pacientes';
 import Scheduling from './components/Scheduling';
+import FluxoSala from './components/FluxoSala';
+import ConfigCC from './components/ConfigCC';
 import './App.css';
 
 interface User {
@@ -18,7 +20,7 @@ interface User {
   role: string;
 }
 
-type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes' | 'schedules';
+type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes' | 'schedules' | 'fluxo-sala' | 'config-cc';
 
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -75,6 +77,10 @@ function App() {
         return <Pacientes />;
       case 'schedules':
         return <Scheduling />;
+      case 'fluxo-sala':
+        return <FluxoSala />;
+      case 'config-cc':
+        return <ConfigCC />;
       case 'relatorios':
         return <Reports />;
       default:

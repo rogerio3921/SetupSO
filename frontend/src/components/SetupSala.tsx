@@ -89,6 +89,7 @@ export default function SetupSala() {
   const [sequenceWarningMessage, setSequenceWarningMessage] = useState('');
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
   const [closingRoom, setClosingRoom] = useState<RoomSetup | null>(null);
+  const [timelineStages, setTimelineStages] = useState<TimelineStage[]>([]);
 
   const delayReasons = [
     'Atraso no transporte',
@@ -114,7 +115,48 @@ export default function SetupSala() {
 
   useEffect(() => {
     fetchRooms();
+    fetchTimelineStages();
   }, []);
+
+  const fetchTimelineStages = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/timeline-stages`, { headers });
+      const stages = (response.data || [])
+        .filter((s: any) => s.active)
+        .map((s: any) => ({
+          seq: s.seq,
+          key: s.key,
+          label: s.label,
+          kind: s.kind,
+          actions: s.kind === 'start_end'
+            ? [{ label: 'Início', action: 'start' as TimelineActionKey }, { label: 'Fim', action: 'end' as TimelineActionKey }]
+            : [{ label: 'Entrada', action: 'in' as TimelineActionKey }, { label: 'Saída', action: 'out' as TimelineActionKey }]
+        }));
+      setTimelineStages(stages);
+    } catch (error) {
+      console.error('Erro ao carregar etapas do fluxo:', error);
+      // Fallback to defaults if API fails
+      setTimelineStages([
+        { seq: 1, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 3, key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 4, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 7, key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 8, key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 9, key: 'surgery', label: 'Cirurgia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 10, key: 'cme', label: 'CME', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 11, key: 'cleaning', label: 'Limpeza', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 12, key: 'pharmacy', label: 'Farmácia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 13, key: 'clinical_engineering', label: 'Eng. clínica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 14, key: 'rpa', label: 'RPA', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 15, key: 'room_setup', label: 'Montagem sala', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+      ]);
+    }
+  };
 
   useEffect(() => {
     const activeRoom = rooms.find((room) => room.id === selectedRoom);
@@ -418,24 +460,6 @@ export default function SetupSala() {
       setEditEventTime('');
     }
   };
-
-  const timelineStages: TimelineStage[] = [
-    { seq: 1, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 3, key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 4, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 7, key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 8, key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 9, key: 'surgery', label: 'Cirurgia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-    { seq: 10, key: 'cme', label: 'CME', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 11, key: 'cleaning', label: 'Limpeza', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 12, key: 'pharmacy', label: 'Farmácia', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 13, key: 'clinical_engineering', label: 'Eng. clínica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 14, key: 'rpa', label: 'RPA', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-    { seq: 15, key: 'room_setup', label: 'Montagem sala', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-  ];
 
   const getStageEvents = (caseId: string | undefined, stageKey: string) => {
     if (!caseId) return [];

@@ -962,6 +962,354 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
   }
 });
 
+// CC Config (admin settings - cost per minute, etc.)
+app.get('/api/cc-config', authMiddleware, async (req, res) => {
+  try {
+    const configs = await prisma.ccConfig.findMany();
+    // Return as key-value object
+    const result: Record<string, string> = {};
+    configs.forEach((c) => { result[c.key] = c.value; });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch CC config' });
+  }
+});
+
+app.put('/api/cc-config', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const entries = req.body; // { key: value, key2: value2, ... }
+
+    for (const [key, value] of Object.entries(entries)) {
+      await prisma.ccConfig.upsert({
+        where: { key },
+        update: { value: String(value) },
+        create: { key, value: String(value) }
+      });
+    }
+
+    const configs = await prisma.ccConfig.findMany();
+    const result: Record<string, string> = {};
+    configs.forEach((c) => { result[c.key] = c.value; });
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update CC config' });
+  }
+});
+
+// Dashboard cost analysis
+app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
+  try {
+    // Get cost per minute from config
+    const costConfig = await prisma.ccConfig.findUnique({ where: { key: 'cost_per_minute' } });
+    const costPerMinute = costConfig ? parseFloat(costConfig.value) : 0;
+
+    if (costPerMinute === 0) {
+      return res.json({
+        costPerMinute: 0,
+        totalDelayCost: 0,
+        totalOperatingCost: 0,
+        stageCosts: [],
+        caseRanking: []
+      });
+    }
+
+    const cases = await prisma.case.findMany({
+      where: { status: 'closed' },
+      include: { events: true, room: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    const getEventMode = (key: string): string | undefined => {
+      return ({
+        patient_in_or: 'in_out',
+        anesthesia: 'start_end',
+        positioning: 'start_end',
+        time_out: 'start_end',
+        surgery: 'start_end',
+        cme: 'in_out',
+        cleaning: 'in_out',
+        pharmacy: 'in_out',
+        clinical_engineering: 'in_out',
+        rpa: 'in_out',
+        room_setup: 'start_end',
+        transport_patient: 'start_end',
+        admission_cc: 'in_out',
+        anesthesia_team: 'in_out',
+        surgical_team: 'in_out'
+      } as Record<string, string>)[key];
+    };
+
+    const getStageDuration = (events: any[], eventKey: string): number | null => {
+      const mode = getEventMode(eventKey);
+      if (!mode) return null;
+      const startAction = mode === 'start_end' ? 'start' : 'in';
+      const endAction = mode === 'start_end' ? 'end' : 'out';
+      const ordered = [...events].sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
+      const startAt = ordered.find((e) => e.eventKey === eventKey && e.action === startAction)?.happenedAt;
+      const endAt = ordered.find((e) => e.eventKey === eventKey && e.action === endAction)?.happenedAt;
+      if (!startAt || !endAt) return null;
+      return new Date(endAt).getTime() - new Date(startAt).getTime();
+    };
+
+    // Calculate delay cost per case
+    let totalDelayCost = 0;
+    const caseRanking: Array<{
+      id: string;
+      code: string;
+      roomCode: string;
+      patientName: string;
+      procedureName: string;
+      totalMinutes: number;
+      totalCost: number;
+      delayMinutes: number;
+      delayCost: number;
+    }> = [];
+
+    // Stage cost accumulator
+    const stageTotals: Record<string, { label: string; totalMs: number; count: number }> = {};
+
+    const stageLabels: Record<string, string> = {
+      anesthesia_team: 'Equipe anestésica',
+      surgical_team: 'Equipe cirúrgica',
+      transport_patient: 'Transporte paciente',
+      admission_cc: 'Admissão Pré CC',
+      patient_in_or: 'Paciente em SO',
+      anesthesia: 'Anestesia',
+      positioning: 'Posicionamento',
+      time_out: 'Time out',
+      surgery: 'Cirurgia',
+      cme: 'CME',
+      cleaning: 'Limpeza',
+      pharmacy: 'Farmácia',
+      clinical_engineering: 'Eng. clínica',
+      rpa: 'RPA',
+      room_setup: 'Montagem sala'
+    };
+
+    for (const caseItem of cases) {
+      // Total CC time: transport_patient:start to rpa:out
+      const transportStart = caseItem.events.find((e) => e.eventKey === 'transport_patient' && e.action === 'start')?.happenedAt;
+      const rpaOut = caseItem.events.find((e) => e.eventKey === 'rpa' && e.action === 'out')?.happenedAt;
+      let totalMs = 0;
+      if (transportStart && rpaOut) {
+        totalMs = new Date(rpaOut).getTime() - new Date(transportStart).getTime();
+      }
+      const totalMinutes = totalMs / 60000;
+      const totalCost = totalMinutes * costPerMinute;
+
+      // Delay calculation
+      let delayMs = 0;
+      if (caseItem.plannedSurgeryTime) {
+        const refDate = caseItem.referenceDate ? new Date(caseItem.referenceDate) : new Date(caseItem.createdAt);
+        let planned: Date;
+        if (/^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
+          const [h, m] = caseItem.plannedSurgeryTime.split(':').map(Number);
+          planned = new Date(refDate);
+          planned.setHours(h, m, 0, 0);
+        } else {
+          planned = new Date(caseItem.plannedSurgeryTime);
+        }
+
+        const patientIn = caseItem.events.find((e) => e.eventKey === 'patient_in_or' && e.action === 'in')?.happenedAt;
+        if (patientIn && !isNaN(planned.getTime())) {
+          const diff = new Date(patientIn).getTime() - planned.getTime();
+          if (diff > 0) delayMs = diff;
+        }
+      }
+
+      const delayMinutes = delayMs / 60000;
+      const delayCost = delayMinutes * costPerMinute;
+      totalDelayCost += delayCost;
+
+      caseRanking.push({
+        id: caseItem.id,
+        code: caseItem.code,
+        roomCode: caseItem.room?.code || '—',
+        patientName: caseItem.patientFullName || '—',
+        procedureName: caseItem.procedureName || '—',
+        totalMinutes: Math.round(totalMinutes),
+        totalCost: Math.round(totalCost * 100) / 100,
+        delayMinutes: Math.round(delayMinutes),
+        delayCost: Math.round(delayCost * 100) / 100
+      });
+
+      // Per-stage costs
+      for (const stageKey of Object.keys(stageLabels)) {
+        const duration = getStageDuration(caseItem.events, stageKey);
+        if (duration !== null && duration > 0) {
+          if (!stageTotals[stageKey]) {
+            stageTotals[stageKey] = { label: stageLabels[stageKey], totalMs: 0, count: 0 };
+          }
+          stageTotals[stageKey].totalMs += duration;
+          stageTotals[stageKey].count += 1;
+        }
+      }
+    }
+
+    // Build stage costs array
+    const stageCosts = Object.entries(stageTotals)
+      .map(([key, data]) => ({
+        key,
+        label: data.label,
+        averageMinutes: Math.round((data.totalMs / data.count) / 60000),
+        totalMinutes: Math.round(data.totalMs / 60000),
+        averageCost: Math.round(((data.totalMs / data.count) / 60000) * costPerMinute * 100) / 100,
+        totalCost: Math.round((data.totalMs / 60000) * costPerMinute * 100) / 100,
+        count: data.count
+      }))
+      .sort((a, b) => b.totalCost - a.totalCost);
+
+    // Total operating cost
+    const totalOperatingCost = stageCosts.reduce((sum, s) => sum + s.totalCost, 0);
+
+    // Sort ranking by total cost descending
+    caseRanking.sort((a, b) => b.totalCost - a.totalCost);
+
+    res.json({
+      costPerMinute,
+      totalDelayCost: Math.round(totalDelayCost * 100) / 100,
+      totalOperatingCost: Math.round(totalOperatingCost * 100) / 100,
+      stageCosts,
+      caseRanking: caseRanking.slice(0, 20) // Top 20
+    });
+  } catch (error) {
+    console.error('Dashboard costs error:', error);
+    res.status(500).json({ error: 'Failed to compute costs' });
+  }
+});
+
+// Timeline Stages (admin configurable flow)
+app.get('/api/timeline-stages', authMiddleware, async (req, res) => {
+  try {
+    const stages = await prisma.timelineStage.findMany({
+      orderBy: { seq: 'asc' }
+    });
+
+    // If no stages in DB yet, seed with defaults
+    if (stages.length === 0) {
+      const defaults = [
+        { key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', seq: 1 },
+        { key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', seq: 2 },
+        { key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', seq: 3 },
+        { key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', seq: 4 },
+        { key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', seq: 5 },
+        { key: 'anesthesia', label: 'Anestesia', kind: 'start_end', seq: 6 },
+        { key: 'positioning', label: 'Posicionamento', kind: 'start_end', seq: 7 },
+        { key: 'time_out', label: 'Time out', kind: 'start_end', seq: 8 },
+        { key: 'surgery', label: 'Cirurgia', kind: 'start_end', seq: 9 },
+        { key: 'cme', label: 'CME', kind: 'in_out', seq: 10 },
+        { key: 'cleaning', label: 'Limpeza', kind: 'in_out', seq: 11 },
+        { key: 'pharmacy', label: 'Farmácia', kind: 'in_out', seq: 12 },
+        { key: 'clinical_engineering', label: 'Engenharia clínica', kind: 'in_out', seq: 13 },
+        { key: 'rpa', label: 'RPA', kind: 'in_out', seq: 14 },
+        { key: 'room_setup', label: 'Montagem de Sala', kind: 'start_end', seq: 15 },
+      ];
+
+      for (const stage of defaults) {
+        await prisma.timelineStage.create({ data: stage });
+      }
+
+      const seeded = await prisma.timelineStage.findMany({ orderBy: { seq: 'asc' } });
+      return res.json(seeded);
+    }
+
+    res.json(stages);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch timeline stages' });
+  }
+});
+
+app.post('/api/timeline-stages', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { key, label, kind, seq } = req.body;
+
+    if (!key || !label) {
+      return res.status(400).json({ error: 'key and label are required' });
+    }
+
+    // Auto-generate key from label if not provided properly
+    const stageKey = key || label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+
+    // Get max seq if not provided
+    let stageSeq = seq;
+    if (stageSeq === undefined || stageSeq === null) {
+      const maxStage = await prisma.timelineStage.findFirst({ orderBy: { seq: 'desc' } });
+      stageSeq = (maxStage?.seq || 0) + 1;
+    }
+
+    const stage = await prisma.timelineStage.create({
+      data: {
+        key: stageKey,
+        label,
+        kind: kind || 'start_end',
+        seq: stageSeq,
+        active: true
+      }
+    });
+    res.status(201).json(stage);
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return res.status(400).json({ error: 'Uma etapa com essa chave já existe.' });
+    }
+    res.status(400).json({ error: 'Failed to create timeline stage' });
+  }
+});
+
+app.patch('/api/timeline-stages/:stageId', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { stageId } = req.params;
+    const { label, kind, seq, active } = req.body;
+
+    const data: any = {};
+    if (label !== undefined) data.label = label;
+    if (kind !== undefined) data.kind = kind;
+    if (seq !== undefined) data.seq = seq;
+    if (active !== undefined) data.active = active;
+
+    const stage = await prisma.timelineStage.update({
+      where: { id: stageId },
+      data
+    });
+    res.json(stage);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update timeline stage' });
+  }
+});
+
+app.delete('/api/timeline-stages/:stageId', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { stageId } = req.params;
+    await prisma.timelineStage.delete({ where: { id: stageId } });
+    res.status(204).send();
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete timeline stage' });
+  }
+});
+
+// Reorder timeline stages (bulk update)
+app.put('/api/timeline-stages/reorder', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { stages } = req.body; // Array of { id, seq }
+
+    if (!Array.isArray(stages)) {
+      return res.status(400).json({ error: 'stages array is required' });
+    }
+
+    for (const item of stages) {
+      await prisma.timelineStage.update({
+        where: { id: item.id },
+        data: { seq: item.seq }
+      });
+    }
+
+    const updated = await prisma.timelineStage.findMany({ orderBy: { seq: 'asc' } });
+    res.json(updated);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to reorder timeline stages' });
+  }
+});
+
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err);

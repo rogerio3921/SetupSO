@@ -106,12 +106,25 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   const [expandedRoomId, setExpandedRoomId] = useState<string | null>(null);
   const [roomTimes, setRoomTimes] = useState<RoomTimes>({});
   const [expandedCaseEvents, setExpandedCaseEvents] = useState<any[]>([]);
+  const [costData, setCostData] = useState<any>(null);
 
   useEffect(() => {
     fetchDashboardData();
+    fetchCostData();
     const interval = setInterval(fetchDashboardData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchCostData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/dashboard/costs`, { headers });
+      setCostData(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar dados de custo:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -574,6 +587,134 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           <p className="text-xs text-slate-500 mt-1">equipe cirúrgica vs horário previsto</p>
         </div>
       </div>
+
+      {/* Cost Analysis Section */}
+      {costData && costData.costPerMinute > 0 && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-red-500 to-red-700 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm font-bold text-white/80">PREJUÍZO COM ATRASOS</p>
+              <p className="text-3xl font-black mt-2">R$ {costData.totalDelayCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs text-white/60 mt-1">total acumulado em atrasos</p>
+            </div>
+            <div className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm font-bold text-white/80">CUSTO OPERACIONAL TOTAL</p>
+              <p className="text-3xl font-black mt-2">R$ {costData.totalOperatingCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs text-white/60 mt-1">soma de todas as etapas</p>
+            </div>
+            <div className="bg-gradient-to-br from-slate-700 to-slate-900 rounded-lg shadow-lg p-6 text-white">
+              <p className="text-sm font-bold text-white/80">CUSTO/MINUTO CC</p>
+              <p className="text-3xl font-black mt-2">R$ {costData.costPerMinute.toFixed(2)}</p>
+              <p className="text-xs text-white/60 mt-1">configurado pelo admin</p>
+            </div>
+          </div>
+
+          {/* Stage Cost Ranking */}
+          {costData.stageCosts && costData.stageCosts.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-bold text-slate-900 mb-1">Ranking de Custo por Etapa</h2>
+              <p className="text-xs text-slate-500 mb-4">Etapas ordenadas pelo custo total acumulado</p>
+              <div className="space-y-2">
+                {costData.stageCosts.slice(0, 10).map((stage: any, index: number) => {
+                  const maxCost = costData.stageCosts[0]?.totalCost || 1;
+                  const percentage = (stage.totalCost / maxCost) * 100;
+                  return (
+                    <div key={stage.key} className="flex items-center gap-3">
+                      <span className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-black ${
+                        index === 0 ? 'bg-red-100 text-red-700' :
+                        index === 1 ? 'bg-amber-100 text-amber-700' :
+                        index === 2 ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {index + 1}
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-bold text-slate-900">{stage.label}</span>
+                          <div className="text-right">
+                            <span className="text-sm font-black text-slate-900">R$ {stage.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-xs text-slate-500 ml-2">({stage.averageMinutes} min média)</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              index === 0 ? 'bg-red-500' :
+                              index === 1 ? 'bg-amber-500' :
+                              index === 2 ? 'bg-yellow-500' :
+                              'bg-blue-400'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Case Cost Ranking */}
+          {costData.caseRanking && costData.caseRanking.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-bold text-slate-900 mb-1">Ranking de Custo por Caso</h2>
+              <p className="text-xs text-slate-500 mb-4">Casos mais caros (tempo total × custo/min)</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">#</th>
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">Paciente</th>
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">Procedimento</th>
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">Sala</th>
+                      <th className="text-right py-2 px-2 font-bold text-slate-600">Tempo (min)</th>
+                      <th className="text-right py-2 px-2 font-bold text-slate-600">Custo Total</th>
+                      <th className="text-right py-2 px-2 font-bold text-slate-600">Atraso</th>
+                      <th className="text-right py-2 px-2 font-bold text-slate-600">Custo Atraso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costData.caseRanking.slice(0, 10).map((item: any, index: number) => (
+                      <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="py-2 px-2">
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
+                            index === 0 ? 'bg-red-100 text-red-700' :
+                            index === 1 ? 'bg-amber-100 text-amber-700' :
+                            index === 2 ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2 font-bold text-slate-900">{item.patientName}</td>
+                        <td className="py-2 px-2 text-slate-700">{item.procedureName}</td>
+                        <td className="py-2 px-2 text-slate-600">{item.roomCode}</td>
+                        <td className="py-2 px-2 text-right font-bold">{item.totalMinutes}</td>
+                        <td className="py-2 px-2 text-right font-black text-slate-900">R$ {item.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="py-2 px-2 text-right">
+                          {item.delayMinutes > 0 ? (
+                            <span className="text-red-600 font-bold">{item.delayMinutes} min</span>
+                          ) : (
+                            <span className="text-green-600 font-bold">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          {item.delayCost > 0 ? (
+                            <span className="text-red-600 font-black">R$ {item.delayCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                          ) : (
+                            <span className="text-green-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Salas Grid */}
       <div className="bg-white rounded-lg shadow-lg p-6">

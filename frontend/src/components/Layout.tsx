@@ -34,6 +34,8 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     { id: 'setup-sala', label: 'Setup Sala', icon: Clock, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'schedules', label: 'Agendamentos', icon: ClipboardList, role: ['Admin', 'Master', 'User'] },
     { id: 'pacientes', label: 'Pacientes', icon: Users, role: ['Admin', 'Master'] },
+    { id: 'fluxo-sala', label: 'Fluxo de Sala', icon: Settings, role: ['Admin', 'Master'] },
+    { id: 'config-cc', label: 'Custos CC', icon: Settings, role: ['Admin', 'Master'] },
     { id: 'cadastros', label: 'Cadastros', icon: ClipboardList, role: ['Admin', 'Master'] },
     { id: 'usuarios', label: 'Usuários', icon: Users, role: ['Admin', 'Master'] },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3, role: ['Admin', 'Master'] },
