@@ -1179,6 +1179,212 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
   }
 });
 
+// Custom Metrics (user-defined calculations)
+app.get('/api/custom-metrics', authMiddleware, async (req, res) => {
+  try {
+    let metrics = await prisma.customMetric.findMany({
+      orderBy: { order: 'asc' }
+    });
+
+    // Seed default metrics on first access
+    if (metrics.length === 0) {
+      const defaults = [
+        { name: 'Atraso do Médico', description: 'Tempo entre entrada do paciente na SO e entrada da equipe cirúrgica', startEventKey: 'patient_in_or', startAction: 'in', endEventKey: 'surgical_team', endAction: 'in', order: 1, isDefault: true },
+        { name: 'Atraso Anestesista', description: 'Tempo entre entrada do paciente na SO e chegada da equipe anestésica', startEventKey: 'patient_in_or', startAction: 'in', endEventKey: 'anesthesia_team', endAction: 'in', order: 2, isDefault: true },
+        { name: 'Tempo Transporte → SO', description: 'Tempo total do transporte até entrada na sala', startEventKey: 'transport_patient', startAction: 'start', endEventKey: 'patient_in_or', endAction: 'in', order: 3, isDefault: true },
+        { name: 'Tempo Anestesia → Cirurgia', description: 'Tempo entre início da anestesia e início da cirurgia', startEventKey: 'anesthesia', startAction: 'start', endEventKey: 'surgery', endAction: 'start', order: 4, isDefault: true },
+        { name: 'Tempo Cirurgia', description: 'Duração total da cirurgia', startEventKey: 'surgery', startAction: 'start', endEventKey: 'surgery', endAction: 'end', order: 5, isDefault: true },
+        { name: 'Tempo Turnover', description: 'Tempo entre saída do paciente e montagem completa da sala', startEventKey: 'patient_in_or', startAction: 'out', endEventKey: 'room_setup', endAction: 'end', order: 6, isDefault: true },
+        { name: 'Tempo Limpeza', description: 'Duração da limpeza da sala', startEventKey: 'cleaning', startAction: 'in', endEventKey: 'cleaning', endAction: 'out', order: 7, isDefault: true },
+        { name: 'Tempo Paciente no CC', description: 'Tempo total do paciente no centro cirúrgico (entrada SO até RPA saída)', startEventKey: 'patient_in_or', startAction: 'in', endEventKey: 'rpa', endAction: 'out', order: 8, isDefault: true },
+        { name: 'Tempo Indução → Incisão', description: 'Tempo entre início da anestesia e início da cirurgia (skin-to-skin)', startEventKey: 'anesthesia', startAction: 'start', endEventKey: 'surgery', endAction: 'start', order: 9, isDefault: true },
+        { name: 'Tempo Pós-Cirurgia → RPA', description: 'Tempo entre fim da cirurgia e entrada na RPA', startEventKey: 'surgery', startAction: 'end', endEventKey: 'rpa', endAction: 'in', order: 10, isDefault: true },
+      ];
+
+      for (const metric of defaults) {
+        await prisma.customMetric.create({
+          data: { ...metric, showOnDashboard: true, showOnReport: true, active: true }
+        });
+      }
+
+      metrics = await prisma.customMetric.findMany({ orderBy: { order: 'asc' } });
+    }
+
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch custom metrics' });
+  }
+});
+
+app.post('/api/custom-metrics', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { name, description, startEventKey, startAction, endEventKey, endAction, showOnDashboard, showOnReport } = req.body;
+
+    if (!name || !startEventKey || !startAction || !endEventKey || !endAction) {
+      return res.status(400).json({ error: 'name, startEventKey, startAction, endEventKey, endAction são obrigatórios' });
+    }
+
+    const maxOrder = await prisma.customMetric.findFirst({ orderBy: { order: 'desc' } });
+
+    const metric = await prisma.customMetric.create({
+      data: {
+        name,
+        description: description || null,
+        startEventKey,
+        startAction,
+        endEventKey,
+        endAction,
+        showOnDashboard: showOnDashboard !== false,
+        showOnReport: showOnReport !== false,
+        active: true,
+        order: (maxOrder?.order || 0) + 1
+      }
+    });
+    res.status(201).json(metric);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to create custom metric' });
+  }
+});
+
+app.patch('/api/custom-metrics/:metricId', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { metricId } = req.params;
+    const metric = await prisma.customMetric.update({
+      where: { id: metricId },
+      data: req.body
+    });
+    res.json(metric);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to update custom metric' });
+  }
+});
+
+app.delete('/api/custom-metrics/:metricId', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { metricId } = req.params;
+    await prisma.customMetric.delete({ where: { id: metricId } });
+    res.status(204).send();
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to delete custom metric' });
+  }
+});
+
+// Compute custom metrics results (for dashboard and reports)
+app.get('/api/custom-metrics/results', authMiddleware, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+
+    const metrics = await prisma.customMetric.findMany({
+      where: { active: true },
+      orderBy: { order: 'asc' }
+    });
+
+    if (metrics.length === 0) {
+      return res.json({ metrics: [] });
+    }
+
+    // Get cost config
+    const costConfig = await prisma.ccConfig.findUnique({ where: { key: 'cost_per_minute' } });
+    const costPerMinute = costConfig ? parseFloat(costConfig.value) : 0;
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (from) dateFilter.gte = new Date(from as string);
+    if (to) {
+      const toDate = new Date(to as string);
+      toDate.setHours(23, 59, 59, 999);
+      dateFilter.lte = toDate;
+    }
+
+    const casesWhere: any = { status: 'closed' };
+    if (from || to) {
+      casesWhere.createdAt = dateFilter;
+    }
+
+    const cases = await prisma.case.findMany({
+      where: casesWhere,
+      include: { events: true, room: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const results = metrics.map((metric) => {
+      const perCase: Array<{
+        caseId: string;
+        caseCode: string;
+        roomCode: string;
+        patientName: string;
+        procedureName: string;
+        durationMs: number;
+        durationMinutes: number;
+        cost: number;
+        date: string;
+      }> = [];
+
+      let totalMs = 0;
+      let count = 0;
+
+      for (const caseItem of cases) {
+        const ordered = [...caseItem.events].sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
+
+        const startEvent = ordered.find((e) => e.eventKey === metric.startEventKey && e.action === metric.startAction);
+        const endEvent = ordered.find((e) => e.eventKey === metric.endEventKey && e.action === metric.endAction);
+
+        if (startEvent && endEvent) {
+          const durationMs = new Date(endEvent.happenedAt).getTime() - new Date(startEvent.happenedAt).getTime();
+          if (durationMs > 0) {
+            const durationMinutes = durationMs / 60000;
+            totalMs += durationMs;
+            count++;
+
+            perCase.push({
+              caseId: caseItem.id,
+              caseCode: caseItem.code,
+              roomCode: caseItem.room?.code || '—',
+              patientName: caseItem.patientFullName || '—',
+              procedureName: caseItem.procedureName || '—',
+              durationMs,
+              durationMinutes: Math.round(durationMinutes * 10) / 10,
+              cost: Math.round(durationMinutes * costPerMinute * 100) / 100,
+              date: caseItem.createdAt.toISOString().split('T')[0]
+            });
+          }
+        }
+      }
+
+      const averageMs = count > 0 ? Math.round(totalMs / count) : 0;
+      const totalMinutes = Math.round(totalMs / 60000);
+      const averageMinutes = count > 0 ? Math.round((totalMs / count) / 60000 * 10) / 10 : 0;
+      const totalCost = Math.round((totalMs / 60000) * costPerMinute * 100) / 100;
+
+      return {
+        id: metric.id,
+        name: metric.name,
+        description: metric.description,
+        startEventKey: metric.startEventKey,
+        startAction: metric.startAction,
+        endEventKey: metric.endEventKey,
+        endAction: metric.endAction,
+        showOnDashboard: metric.showOnDashboard,
+        showOnReport: metric.showOnReport,
+        // Aggregated
+        totalMinutes,
+        averageMinutes,
+        averageMs,
+        totalCost,
+        count,
+        costPerMinute,
+        // Per case detail
+        cases: perCase.sort((a, b) => b.durationMinutes - a.durationMinutes)
+      };
+    });
+
+    res.json({ metrics: results, costPerMinute });
+  } catch (error) {
+    console.error('Custom metrics results error:', error);
+    res.status(500).json({ error: 'Failed to compute custom metrics' });
+  }
+});
+
 // Timeline Stages (admin configurable flow)
 app.get('/api/timeline-stages', authMiddleware, async (req, res) => {
   try {

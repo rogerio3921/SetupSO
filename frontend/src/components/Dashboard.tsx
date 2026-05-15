@@ -107,13 +107,26 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   const [roomTimes, setRoomTimes] = useState<RoomTimes>({});
   const [expandedCaseEvents, setExpandedCaseEvents] = useState<any[]>([]);
   const [costData, setCostData] = useState<any>(null);
+  const [customMetricsData, setCustomMetricsData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
     fetchCostData();
+    fetchCustomMetrics();
     const interval = setInterval(fetchDashboardData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchCustomMetrics = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const response = await axios.get(`${API_URL}/custom-metrics/results`, { headers });
+      setCustomMetricsData(response.data?.metrics || []);
+    } catch (error) {
+      console.error('Erro ao buscar métricas customizadas:', error);
+    }
+  };
 
   const fetchCostData = async () => {
     try {
@@ -587,6 +600,37 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           <p className="text-xs text-slate-500 mt-1">equipe cirúrgica vs horário previsto</p>
         </div>
       </div>
+
+      {/* Custom Metrics Section */}
+      {customMetricsData.filter((m) => m.showOnDashboard).length > 0 && (
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Indicadores Personalizados</h2>
+          <p className="text-xs text-slate-500 mb-4">Cálculos configurados pelo administrador</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {customMetricsData.filter((m) => m.showOnDashboard).map((metric) => (
+              <div key={metric.id} className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
+                <p className="text-xs font-bold text-indigo-600 uppercase">{metric.name}</p>
+                <div className="mt-2 flex items-end gap-3">
+                  <div>
+                    <p className="text-2xl font-black text-slate-900">{metric.averageMinutes} min</p>
+                    <p className="text-xs text-slate-500">média por caso</p>
+                  </div>
+                  <div className="text-right flex-1">
+                    <p className="text-lg font-black text-slate-700">{metric.totalMinutes} min</p>
+                    <p className="text-xs text-slate-500">total ({metric.count} casos)</p>
+                  </div>
+                </div>
+                {metric.costPerMinute > 0 && (
+                  <div className="mt-3 pt-3 border-t border-indigo-200 flex items-center justify-between">
+                    <span className="text-xs text-slate-600">Custo total:</span>
+                    <span className="text-sm font-black text-red-600">R$ {metric.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Cost Analysis Section */}
       {costData && costData.costPerMinute > 0 && (

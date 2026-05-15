@@ -167,3 +167,20 @@ model CcConfig {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
+
+model CustomMetric {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  startEventKey   String   // ex: patient_in_or
+  startAction     String   // ex: in
+  endEventKey     String   // ex: surgical_team
+  endAction       String   // ex: in
+  showOnDashboard Boolean  @default(true)
+  showOnReport    Boolean  @default(true)
+  active          Boolean  @default(true)
+  isDefault       Boolean  @default(false)
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
