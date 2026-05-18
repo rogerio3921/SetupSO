@@ -162,28 +162,12 @@ app.post('/api/events', async (req, res) => {
   try {
     const { caseId, eventKey, action, auto, userId } = req.body;
 
-    const timelineOrder = [
-      'anesthesia_team',
-      'surgical_team',
-      'transport_patient',
-      'admission_cc',
-      'patient_in_or',
-      'anesthesia',
-      'positioning',
-      'time_out',
-      'surgery',
-      'cme',
-      'cleaning',
-      'pharmacy',
-      'clinical_engineering',
-      'rpa',
-      'room_setup'
-    ];
+    const timelineOrder = DASHBOARD_STAGE_ORDER;
 
     const stageLabels: Record<string, string> = {
+      transport_patient: 'Transporte paciente',
       anesthesia_team: 'Equipe anestésica',
       surgical_team: 'Equipe cirúrgica',
-      transport_patient: 'Transporte paciente',
       admission_cc: 'Admissão no Pré CC',
       patient_in_or: 'Paciente em SO',
       anesthesia: 'Anestesia',
@@ -342,6 +326,138 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch events' });
   }
 });
+
+const DASHBOARD_STAGE_ORDER = [
+  'transport_patient',
+  'anesthesia_team',
+  'surgical_team',
+  'admission_cc',
+  'patient_in_or',
+  'anesthesia',
+  'positioning',
+  'time_out',
+  'surgery',
+  'cme',
+  'cleaning',
+  'pharmacy',
+  'clinical_engineering',
+  'rpa',
+  'room_setup'
+];
+
+function parseDashboardDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildCaseMoment(caseItem: any) {
+  if (caseItem.referenceDate && caseItem.plannedSurgeryTime && /^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
+    const moment = new Date(caseItem.referenceDate);
+    const [hours, minutes] = String(caseItem.plannedSurgeryTime).split(':').map(Number);
+    moment.setHours(hours, minutes, 0, 0);
+    return moment;
+  }
+
+  if (caseItem.plannedSurgeryTime) {
+    const planned = new Date(caseItem.plannedSurgeryTime);
+    if (!Number.isNaN(planned.getTime())) {
+      return planned;
+    }
+  }
+
+  return new Date(caseItem.createdAt);
+}
+
+function getEventTimestamp(events: any[], eventKey: string, action: string) {
+  return [...events]
+    .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
+    .find((event) => event.eventKey === eventKey && event.action === action)?.happenedAt || null;
+}
+
+function formatEventTimestamp(value: string | Date | null | undefined) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getPlannedStartAt(caseItem: any) {
+  if (!caseItem.plannedSurgeryTime) return null;
+
+  if (/^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
+    const refDate = caseItem.referenceDate ? new Date(caseItem.referenceDate) : new Date(caseItem.createdAt);
+    const [hours, minutes] = String(caseItem.plannedSurgeryTime).split(':').map(Number);
+    const planned = new Date(refDate);
+    planned.setHours(hours, minutes, 0, 0);
+    return planned;
+  }
+
+  const planned = new Date(caseItem.plannedSurgeryTime);
+  return Number.isNaN(planned.getTime()) ? null : planned;
+}
+
+function formatCaseMoment(caseItem: any) {
+  return buildCaseMoment(caseItem).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getDashboardCaseFilters(query: Record<string, string | undefined>) {
+  const roomId = query.roomId || undefined;
+  const period = query.period || 'all';
+  const date = parseDashboardDate(query.date || null);
+  const from = parseDashboardDate(query.from || null);
+  const to = parseDashboardDate(query.to || null);
+
+  let rangeStart: Date | null = null;
+  let rangeEnd: Date | null = null;
+
+  if (period === 'day' && date) {
+    rangeStart = new Date(date);
+    rangeStart.setHours(0, 0, 0, 0);
+    rangeEnd = new Date(date);
+    rangeEnd.setHours(23, 59, 59, 999);
+  } else if (period === 'month' && date) {
+    rangeStart = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+    rangeEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+  } else if (period === 'range' && from && to) {
+    rangeStart = new Date(from);
+    rangeStart.setHours(0, 0, 0, 0);
+    rangeEnd = new Date(to);
+    rangeEnd.setHours(23, 59, 59, 999);
+  }
+
+  return { roomId, rangeStart, rangeEnd };
+}
+
+function filterDashboardCases(cases: any[], query: Record<string, string | undefined>) {
+  const { roomId, rangeStart, rangeEnd } = getDashboardCaseFilters(query);
+
+  return cases.filter((caseItem) => {
+    if (roomId && caseItem.roomId !== roomId) {
+      return false;
+    }
+
+    if (rangeStart || rangeEnd) {
+      const caseMoment = buildCaseMoment(caseItem);
+      if (rangeStart && caseMoment < rangeStart) return false;
+      if (rangeEnd && caseMoment > rangeEnd) return false;
+    }
+
+    return true;
+  });
+}
 
 // Close a case: ensure all open stages are ended, mark case closed, release patient, and prepare room for next
 app.post('/api/cases/:caseId/close', async (req, res) => {
@@ -891,19 +1007,38 @@ function computeDelayMs(events: any[], plannedStart: string | null | undefined, 
   return new Date(actual).getTime() - planned.getTime();
 }
 
+function computeCaseDelayMinutes(caseItem: any) {
+  const planned = getPlannedStartAt(caseItem);
+  if (!planned) return { delayMs: 0, plannedAt: null as Date | null, actualAt: null as string | null };
+
+  const actualAt = getEventTimestamp(caseItem.events, 'surgery', 'start')
+    || getEventTimestamp(caseItem.events, 'surgery', 'end')
+    || getEventTimestamp(caseItem.events, 'patient_in_or', 'in');
+
+  if (!actualAt) {
+    return { delayMs: 0, plannedAt: planned, actualAt: null };
+  }
+
+  const delayMs = Math.max(0, new Date(actualAt).getTime() - planned.getTime());
+  return { delayMs, plannedAt: planned, actualAt };
+}
+
 app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
   try {
+    const query = req.query as Record<string, string | undefined>;
     const cases = await prisma.case.findMany({
       include: { events: true, room: true },
       orderBy: { createdAt: 'desc' }
     });
 
-    const completedCases = cases.filter((item) => item.events.some((event) => event.eventKey === 'surgery' && event.action === 'end'));
-    const activeCases = cases.filter((item) => item.status === 'active');
-    const inPrepCases = cases.filter((item) => item.status === 'active' && (item.roomPhase === 'open' || item.patientPhase === 'open'));
+    const filteredCases = filterDashboardCases(cases, query);
+
+    const completedCases = filteredCases.filter((item) => item.events.some((event) => event.eventKey === 'surgery' && event.action === 'end'));
+    const activeCases = filteredCases.filter((item) => item.status === 'active');
+    const inPrepCases = filteredCases.filter((item) => item.status === 'active' && (item.roomPhase === 'open' || item.patientPhase === 'open'));
 
     // Only use completed cases (with surgery end) for average calculations to avoid skewing with ongoing cases
-    const casesForAverages = completedCases.length > 0 ? completedCases : cases;
+    const casesForAverages = completedCases.length > 0 ? completedCases : filteredCases;
 
     const avgTransportToOr = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'transport_patient')));
     const avgOr = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'patient_in_or')));
@@ -915,13 +1050,13 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
       item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
     )));
 
-    const plannedCount = cases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
+    const plannedCount = filteredCases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
     const patientDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
     const anesthesiaDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in', item.referenceDate || item.createdAt)));
     const surgeryTeamDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in', item.referenceDate || item.createdAt)));
 
     res.json({
-      totalCases: cases.length,
+      totalCases: filteredCases.length,
       completedCases: completedCases.length,
       activeCases: activeCases.length,
       inPrepCases: inPrepCases.length,
@@ -935,7 +1070,7 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
       averagePatientDelayMs: patientDelay,
       averageAnesthesiaTeamDelayMs: anesthesiaDelay,
       averageSurgeryTeamDelayMs: surgeryTeamDelay,
-      cases: cases.map((item) => ({
+      cases: filteredCases.map((item) => ({
         id: item.id,
         roomId: item.roomId,
         roomCode: item.room?.code || null,
@@ -945,6 +1080,11 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
         procedureName: item.procedureName,
         surgeonName: item.surgeonName,
         plannedSurgeryTime: item.plannedSurgeryTime,
+        createdAt: item.createdAt,
+        referenceDate: item.referenceDate,
+        dateTimeLabel: formatCaseMoment(item),
+        plannedAtLabel: formatEventTimestamp(getPlannedStartAt(item)),
+        actualSurgeryStartLabel: formatEventTimestamp(getEventTimestamp(item.events, 'surgery', 'start') || getEventTimestamp(item.events, 'patient_in_or', 'in')),
         transportPatientMs: computeStageDurationMs(item.events, 'transport_patient'),
         orMs: computeStageDurationMs(item.events, 'patient_in_or'),
         anesthesiaMs: computeStageDurationMs(item.events, 'anesthesia'),
@@ -999,6 +1139,7 @@ app.put('/api/cc-config', authMiddleware, roleMiddleware(['Admin']), async (req,
 // Dashboard cost analysis
 app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
   try {
+    const query = req.query as Record<string, string | undefined>;
     // Get cost per minute from config
     const costConfig = await prisma.ccConfig.findUnique({ where: { key: 'cost_per_minute' } });
     const costPerMinute = costConfig ? parseFloat(costConfig.value) : 0;
@@ -1019,6 +1160,8 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       orderBy: { createdAt: 'desc' },
       take: 100
     });
+
+    const filteredCases = filterDashboardCases(cases, query);
 
     const getEventMode = (key: string): string | undefined => {
       return ({
@@ -1060,6 +1203,9 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       roomCode: string;
       patientName: string;
       procedureName: string;
+      dateTimeLabel: string;
+      plannedAtLabel: string;
+      actualSurgeryStartLabel: string;
       totalMinutes: number;
       totalCost: number;
       delayMinutes: number;
@@ -1087,7 +1233,7 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       room_setup: 'Montagem sala'
     };
 
-    for (const caseItem of cases) {
+    for (const caseItem of filteredCases) {
       // Total CC time: transport_patient:start to rpa:out
       const transportStart = caseItem.events.find((e) => e.eventKey === 'transport_patient' && e.action === 'start')?.happenedAt;
       const rpaOut = caseItem.events.find((e) => e.eventKey === 'rpa' && e.action === 'out')?.happenedAt;
@@ -1099,24 +1245,8 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       const totalCost = totalMinutes * costPerMinute;
 
       // Delay calculation
-      let delayMs = 0;
-      if (caseItem.plannedSurgeryTime) {
-        const refDate = caseItem.referenceDate ? new Date(caseItem.referenceDate) : new Date(caseItem.createdAt);
-        let planned: Date;
-        if (/^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
-          const [h, m] = caseItem.plannedSurgeryTime.split(':').map(Number);
-          planned = new Date(refDate);
-          planned.setHours(h, m, 0, 0);
-        } else {
-          planned = new Date(caseItem.plannedSurgeryTime);
-        }
-
-        const patientIn = caseItem.events.find((e) => e.eventKey === 'patient_in_or' && e.action === 'in')?.happenedAt;
-        if (patientIn && !isNaN(planned.getTime())) {
-          const diff = new Date(patientIn).getTime() - planned.getTime();
-          if (diff > 0) delayMs = diff;
-        }
-      }
+      const delayInfo = computeCaseDelayMinutes(caseItem);
+      const delayMs = delayInfo.delayMs;
 
       const delayMinutes = delayMs / 60000;
       const delayCost = delayMinutes * costPerMinute;
@@ -1128,6 +1258,9 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
         roomCode: caseItem.room?.code || '—',
         patientName: caseItem.patientFullName || '—',
         procedureName: caseItem.procedureName || '—',
+        dateTimeLabel: formatCaseMoment(caseItem),
+        plannedAtLabel: formatEventTimestamp(delayInfo.plannedAt),
+        actualSurgeryStartLabel: formatEventTimestamp(delayInfo.actualAt),
         totalMinutes: Math.round(totalMinutes),
         totalCost: Math.round(totalCost * 100) / 100,
         delayMinutes: Math.round(delayMinutes),

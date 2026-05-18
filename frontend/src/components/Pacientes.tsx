@@ -291,8 +291,7 @@ export default function Pacientes() {
             <input className="input" type="date" value={patientForm.birthDate} onChange={(e) => setPatientForm({ ...patientForm, birthDate: e.target.value })} />
             <input className="input" placeholder="Procedimento" value={patientForm.procedureName} onChange={(e) => setPatientForm({ ...patientForm, procedureName: e.target.value })} list="procedure-suggestions" />
             <input className="input" placeholder="Cirurgião" value={patientForm.surgeonName} onChange={(e) => setPatientForm({ ...patientForm, surgeonName: e.target.value })} />
-            <input className="input" placeholder="Tempo previsto da cirurgia (HH:MM)" value={patientForm.plannedSurgeryTime} onChange={(e) => setPatientForm({ ...patientForm, plannedSurgeryTime: e.target.value })} />
-            <input className="input" placeholder="Tempo estimado (min)" type="number" value={patientForm.estimatedMinutes} onChange={(e) => setPatientForm({ ...patientForm, estimatedMinutes: e.target.value })} />
+            <input className="input" placeholder="Tempo previsto de cirurgia (min)" type="number" value={patientForm.estimatedMinutes} onChange={(e) => setPatientForm({ ...patientForm, estimatedMinutes: e.target.value })} />
             <input className="input md:col-span-2 lg:col-span-3" placeholder="Alergias / observações" value={patientForm.allergies} onChange={(e) => setPatientForm({ ...patientForm, allergies: e.target.value })} />
 
             <div className="md:col-span-2 lg:col-span-3 flex flex-wrap gap-2 pt-2">
@@ -363,7 +362,7 @@ export default function Pacientes() {
               <input className="input" type="date" value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
               <input className="input" type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} />
               <input className="input" placeholder="Procedimento" value={scheduleForm.procedureName} onChange={(e) => setScheduleForm({ ...scheduleForm, procedureName: e.target.value })} list="procedure-suggestions-agenda" />
-              <input className="input" type="number" placeholder="Tempo estimado (min)" value={scheduleForm.estimatedMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedMinutes: e.target.value })} />
+              <input className="input" type="number" placeholder="Tempo previsto de cirurgia (min)" value={scheduleForm.estimatedMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedMinutes: e.target.value })} />
 
               <div className="md:col-span-2 flex flex-wrap gap-2 pt-2">
                 <button type="submit" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg">
@@ -387,7 +386,8 @@ export default function Pacientes() {
                 <p className="text-xs text-slate-500">Paciente selecionado</p>
                 <p className="font-black text-slate-900">{selectedPatient?.fullName || 'Nenhum selecionado'}</p>
                 <p className="text-sm text-slate-600">Procedimento: {selectedPatient?.procedureName || '—'}</p>
-                <p className="text-sm text-slate-600">Tempo: {selectedPatient?.estimatedMinutes || '—'} min</p>
+                <p className="text-sm text-slate-600">Tempo previsto: {selectedPatient?.estimatedMinutes || '—'} min</p>
+                <p className="text-sm text-slate-600">Alergia: {selectedPatient?.allergies || '—'}</p>
               </div>
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
@@ -411,6 +411,7 @@ export default function Pacientes() {
                       <p className="font-black text-slate-900">{patient.fullName}</p>
                       <p className="text-sm text-slate-600">{patient.procedureName || 'Sem procedimento'}</p>
                       <p className="text-xs text-slate-500 mt-1">{patient.noticeNumber || patient.attendanceNumber || 'Sem aviso/atendimento'}</p>
+                      <p className="text-xs text-slate-500 mt-1">Alergia: {patient.allergies || '—'}</p>
                     </div>
                     <button onClick={() => setScheduleForm((current) => ({ ...current, patientId: patient.id, procedureName: patient.procedureName || current.procedureName, estimatedMinutes: patient.estimatedMinutes ? String(patient.estimatedMinutes) : current.estimatedMinutes }))} className="text-xs font-bold px-3 py-2 rounded-lg bg-blue-50 text-blue-700">
                       Selecionar

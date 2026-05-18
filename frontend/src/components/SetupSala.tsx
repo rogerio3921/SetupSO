@@ -48,6 +48,8 @@ interface RoomSetup extends Room {
   patientName?: string;
   times?: SetupTimes;
   scheduledStart?: string;
+  estimatedMinutes?: number | null;
+  allergies?: string | null;
   isDelayed?: boolean;
   delayReason?: string;
   procedureName?: string;
@@ -133,15 +135,16 @@ export default function SetupSala() {
           actions: s.kind === 'start_end'
             ? [{ label: 'Início', action: 'start' as TimelineActionKey }, { label: 'Fim', action: 'end' as TimelineActionKey }]
             : [{ label: 'Entrada', action: 'in' as TimelineActionKey }, { label: 'Saída', action: 'out' as TimelineActionKey }]
-        }));
+        }))
+        .sort((a: TimelineStage, b: TimelineStage) => a.seq - b.seq);
       setTimelineStages(stages);
     } catch (error) {
       console.error('Erro ao carregar etapas do fluxo:', error);
       // Fallback to defaults if API fails
       setTimelineStages([
-        { seq: 1, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-        { seq: 2, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-        { seq: 3, key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 1, key: 'transport_patient', label: 'Transporte do paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
+        { seq: 2, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 3, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
         { seq: 4, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
         { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
         { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
@@ -216,6 +219,7 @@ export default function SetupSala() {
 
       const roomsWithSetup: RoomSetup[] = roomsResponse.data.map((room: Room) => {
         const activeCase = activeCasesByRoom.get(room.id);
+        const scheduledPatient = scheduledPatients.find((patient: any) => patient.roomId === room.id);
 
         return {
           ...room,
@@ -224,6 +228,8 @@ export default function SetupSala() {
           procedureName: activeCase?.procedureName || 'Procedimento não informado',
           surgeonName: activeCase?.surgeonName || 'Cirurgião não informado',
           scheduledStart: activeCase?.plannedSurgeryTime || '—',
+          estimatedMinutes: scheduledPatient?.estimatedMinutes ?? null,
+          allergies: activeCase?.allergies || scheduledPatient?.allergies || null,
           delayReason: activeCase?.delayReason || undefined,
           times: {}
         };
@@ -778,7 +784,7 @@ export default function SetupSala() {
                     {openingRoomId === room.id ? 'Sincronizando...' : 'Abrir / sincronizar caso ativo'}
                   </button>
 
-                  <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
                       <p className="text-xs text-slate-500">PACIENTE</p>
                       <p className="font-bold text-slate-900">{room.patientName || 'Não informado'}</p>
@@ -790,6 +796,10 @@ export default function SetupSala() {
                     <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
                       <p className="text-xs text-slate-500">CIRURGIÃO</p>
                       <p className="font-bold text-slate-900">{room.surgeonName || '—'}</p>
+                    </div>
+                    <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
+                      <p className="text-xs text-amber-700">ALERGIA</p>
+                      <p className="font-bold text-amber-900">{room.allergies || 'Sem alergia registrada'}</p>
                     </div>
                   </div>
 
@@ -917,7 +927,11 @@ export default function SetupSala() {
                           <span className="font-bold text-slate-900">{room.surgeonName || '—'}</span>
                         </div>
                         <div className="rounded-lg bg-slate-50 p-2">
-                          <span className="block text-slate-500">Previsto</span>
+                          <span className="block text-slate-500">Tempo previsto de cirurgia</span>
+                          <span className="font-bold text-slate-900">{room.estimatedMinutes ? `${room.estimatedMinutes} min` : '—'}</span>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <span className="block text-slate-500">Hora prevista</span>
                           <span className="font-bold text-slate-900">{room.scheduledStart || '—'}</span>
                         </div>
                       </div>

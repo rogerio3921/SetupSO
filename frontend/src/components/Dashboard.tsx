@@ -79,6 +79,11 @@ interface TimelineStage {
 
 export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [filterMode, setFilterMode] = useState<'all' | 'day' | 'month' | 'range' | 'room'>('all');
+  const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
+  const [filterFrom, setFilterFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [filterTo, setFilterTo] = useState(new Date().toISOString().slice(0, 10));
+  const [filterRoomId, setFilterRoomId] = useState('');
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -108,13 +113,27 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   const [expandedCaseEvents, setExpandedCaseEvents] = useState<any[]>([]);
   const [costData, setCostData] = useState<any>(null);
   const [customMetricsData, setCustomMetricsData] = useState<any[]>([]);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+
+  const buildFilterQuery = () => {
+    const params = new URLSearchParams();
+
+    if (filterMode === 'day' || filterMode === 'month') {
+      params.set('period', filterMode);
+      params.set('date', filterDate);
+    } else if (filterMode === 'range') {
+      params.set('period', 'range');
+      params.set('from', filterFrom);
+      params.set('to', filterTo);
+    } else if (filterMode === 'room' && filterRoomId) {
+      params.set('roomId', filterRoomId);
+    }
+
+    return params.toString();
+  };
 
   useEffect(() => {
-    fetchDashboardData();
-    fetchCostData();
     fetchCustomMetrics();
-    const interval = setInterval(fetchDashboardData, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchCustomMetrics = async () => {
@@ -132,7 +151,8 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
-      const response = await axios.get(`${API_URL}/dashboard/costs`, { headers });
+      const queryString = buildFilterQuery();
+      const response = await axios.get(`${API_URL}/dashboard/costs${queryString ? `?${queryString}` : ''}`, { headers });
       setCostData(response.data);
     } catch (error) {
       console.error('Erro ao buscar dados de custo:', error);
@@ -143,15 +163,17 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
+      const queryString = buildFilterQuery();
       
       const [roomsRes, casesRes, summaryRes] = await Promise.all([
         axios.get(`${API_URL}/rooms`, { headers }),
         axios.get(`${API_URL}/cases`, { headers }),
-        axios.get(`${API_URL}/dashboard/summary`, { headers })
+        axios.get(`${API_URL}/dashboard/summary${queryString ? `?${queryString}` : ''}`, { headers })
       ]);
 
       setRooms(roomsRes.data);
       setCases(casesRes.data);
+      setLastUpdatedAt(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
       setKpiData({
         totalSurgeries: summaryRes.data.completedCases || summaryRes.data.totalCases || 0,
@@ -175,6 +197,21 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
       setLoading(false);
     }
   };
+
+  const refreshDashboard = () => {
+    fetchDashboardData();
+    fetchCostData();
+  };
+
+  useEffect(() => {
+    refreshDashboard();
+
+    const interval = setInterval(() => {
+      refreshDashboard();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [filterMode, filterDate, filterFrom, filterTo, filterRoomId]);
 
   const handleExpandRoom = (roomId: string) => {
     setExpandedRoomId(roomId);
@@ -509,6 +546,115 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         </button>
       </div>
 
+      <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+        <span>Última atualização: {lastUpdatedAt || 'carregando...'}</span>
+        <button
+          type="button"
+          onClick={refreshDashboard}
+          className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
+        >
+          Atualizar agora
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-lg p-4 border border-slate-200">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Filtros do dashboard</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'all', label: 'Tudo' },
+                { id: 'day', label: 'Dia' },
+                { id: 'month', label: 'Mês' },
+                { id: 'range', label: 'Período' },
+                { id: 'room', label: 'Sala' }
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setFilterMode(option.id as typeof filterMode)}
+                  className={`px-4 py-2 rounded-full text-sm font-black border transition-all ${
+                    filterMode === option.id
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 items-end">
+            {(filterMode === 'day' || filterMode === 'month') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Data de referência</label>
+                <input
+                  type="date"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                />
+              </div>
+            )}
+
+            {filterMode === 'range' && (
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">De</label>
+                  <input
+                    type="date"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    value={filterFrom}
+                    onChange={(e) => setFilterFrom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Até</label>
+                  <input
+                    type="date"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                    value={filterTo}
+                    onChange={(e) => setFilterTo(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {filterMode === 'room' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Sala</label>
+                <select
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+                  value={filterRoomId}
+                  onChange={(e) => setFilterRoomId(e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.code} - {room.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {filterMode !== 'all' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterMode('all');
+                  setFilterRoomId('');
+                }}
+                className="h-11 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-all"
+              >
+                Limpar filtro
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Cirurgias */}
@@ -577,9 +723,9 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           <p className="text-xs text-slate-500 mt-1">entrada → saída da sala</p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-rose-500">
-          <p className="text-sm text-slate-600 font-bold">PREVISTOS</p>
+          <p className="text-sm text-slate-600 font-bold">AGENDADOS</p>
           <p className="text-3xl font-black text-rose-600 mt-2">{kpiData.plannedCount}</p>
-          <p className="text-xs text-slate-500 mt-1">casos com horário previsto</p>
+          <p className="text-xs text-slate-500 mt-1">casos com horário agendado</p>
         </div>
       </div>
 
@@ -587,17 +733,17 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO PACIENTE</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averagePatientDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">entrada no CC vs horário previsto</p>
+          <p className="text-xs text-slate-500 mt-1">agendado vs entrada real no CC</p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO ANESTESIA</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averageAnesthesiaTeamDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">equipe anestesia vs horário previsto</p>
+          <p className="text-xs text-slate-500 mt-1">agendado vs entrada da equipe anestésica</p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO CIRURGIA</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averageSurgeryTeamDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">equipe cirúrgica vs horário previsto</p>
+          <p className="text-xs text-slate-500 mt-1">agendado vs início real da cirurgia</p>
         </div>
       </div>
 
@@ -703,13 +849,15 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           {costData.caseRanking && costData.caseRanking.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-slate-900 mb-1">Ranking de Custo por Caso</h2>
-              <p className="text-xs text-slate-500 mb-4">Casos mais caros (tempo total × custo/min)</p>
+              <p className="text-xs text-slate-500 mb-4">Casos mais caros com horário agendado e início real da cirurgia</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-2 px-2 font-bold text-slate-600">#</th>
                       <th className="text-left py-2 px-2 font-bold text-slate-600">Paciente</th>
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">Agendado</th>
+                      <th className="text-left py-2 px-2 font-bold text-slate-600">Início real</th>
                       <th className="text-left py-2 px-2 font-bold text-slate-600">Procedimento</th>
                       <th className="text-left py-2 px-2 font-bold text-slate-600">Sala</th>
                       <th className="text-right py-2 px-2 font-bold text-slate-600">Tempo (min)</th>
@@ -732,6 +880,8 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
                           </span>
                         </td>
                         <td className="py-2 px-2 font-bold text-slate-900">{item.patientName}</td>
+                        <td className="py-2 px-2 text-slate-600 text-xs font-bold">{item.plannedAtLabel || '—'}</td>
+                        <td className="py-2 px-2 text-slate-600 text-xs font-bold">{item.actualSurgeryStartLabel || '—'}</td>
                         <td className="py-2 px-2 text-slate-700">{item.procedureName}</td>
                         <td className="py-2 px-2 text-slate-600">{item.roomCode}</td>
                         <td className="py-2 px-2 text-right font-bold">{item.totalMinutes}</td>

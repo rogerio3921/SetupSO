@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GripVertical, Plus, Pencil, Trash2, Save, X, ArrowUp, ArrowDown } from 'lucide-react';
+import { GripVertical, Plus, Pencil, Save, X, ArrowUp, ArrowDown, ToggleLeft, ToggleRight } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
@@ -118,22 +118,6 @@ export default function FluxoSala() {
     }
   };
 
-  const handleDelete = async (stage: TimelineStage) => {
-    if (!window.confirm(`Tem certeza que deseja excluir a etapa "${stage.label}"? Eventos já registrados com essa chave não serão removidos.`)) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.delete(`${API_URL}/timeline-stages/${stage.id}`, { headers });
-      await fetchStages();
-    } catch (error) {
-      console.error('Erro ao excluir etapa:', error);
-      alert('Erro ao excluir etapa.');
-    }
-  };
-
   const toggleActive = async (stage: TimelineStage) => {
     try {
       const token = localStorage.getItem('token');
@@ -191,7 +175,7 @@ export default function FluxoSala() {
             <div className="col-span-1">#</div>
             <div className="col-span-4">Nome da Etapa</div>
             <div className="col-span-2">Tipo</div>
-            <div className="col-span-2">Status</div>
+            <div className="col-span-2">Estado</div>
             <div className="col-span-3 text-right">Ações</div>
           </div>
         </div>
@@ -230,13 +214,15 @@ export default function FluxoSala() {
                 <div className="col-span-2">
                   <button
                     onClick={() => toggleActive(stage)}
-                    className={`text-xs font-bold px-2 py-1 rounded-full transition-all ${
+                    className={`inline-flex items-center gap-1 text-xs font-black px-3 py-1.5 rounded-full transition-all border ${
                       stage.active
-                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200'
+                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
                     }`}
+                    title={stage.active ? 'Desabilitar etapa' : 'Habilitar etapa'}
                   >
-                    {stage.active ? 'Ativo' : 'Inativo'}
+                    {stage.active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    {stage.active ? 'Habilitado' : 'Desabilitado'}
                   </button>
                 </div>
 
@@ -264,13 +250,6 @@ export default function FluxoSala() {
                     title="Editar"
                   >
                     <Pencil size={16} className="text-blue-600" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(stage)}
-                    className="p-2 rounded-lg hover:bg-red-50 transition-all"
-                    title="Excluir"
-                  >
-                    <Trash2 size={16} className="text-red-600" />
                   </button>
                 </div>
               </div>
