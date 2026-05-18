@@ -215,8 +215,8 @@ app.post('/api/events', async (req, res) => {
       if (!mode) return;
       const startAction = mode === 'start_end' ? 'start' : 'in';
       const endAction = mode === 'start_end' ? 'end' : 'out';
-      const hasStart = events.some((e) => e.action === startAction);
-      const hasEnd = events.some((e) => e.action === endAction);
+      const hasStart = events.some((e: any) => e.action === startAction);
+      const hasEnd = events.some((e: any) => e.action === endAction);
       if (hasStart && !hasEnd) {
         await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: new Date() } });
       }
@@ -236,7 +236,7 @@ app.post('/api/events', async (req, res) => {
 
           const previousPrimaryAction = getPrimaryActionForMode(previousMode);
           const previousEvents = await prisma.event.findMany({ where: { caseId, eventKey: previousKey }, orderBy: { happenedAt: 'asc' } });
-          const hasPrimaryEvent = previousEvents.some((eventItem) => eventItem.action === previousPrimaryAction);
+          const hasPrimaryEvent = previousEvents.some((eventItem: any) => eventItem.action === previousPrimaryAction);
 
           if (!hasPrimaryEvent) {
             missingStages.push(stageLabels[previousKey] || previousKey);
@@ -372,7 +372,7 @@ function buildCaseMoment(caseItem: any) {
 function getEventTimestamp(events: any[], eventKey: string, action: string) {
   return [...events]
     .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
-    .find((event) => event.eventKey === eventKey && event.action === action)?.happenedAt || null;
+    .find((event: any) => event.eventKey === eventKey && event.action === action)?.happenedAt || null;
 }
 
 function formatEventTimestamp(value: string | Date | null | undefined) {
@@ -490,8 +490,8 @@ app.post('/api/cases/:caseId/close', async (req, res) => {
       if (!mode) return;
       const startAction = mode === 'start_end' ? 'start' : 'in';
       const endAction = mode === 'start_end' ? 'end' : 'out';
-      const hasStart = events.some((e) => e.action === startAction);
-      const hasEnd = events.some((e) => e.action === endAction);
+      const hasStart = events.some((e: any) => e.action === startAction);
+      const hasEnd = events.some((e: any) => e.action === endAction);
       if (hasStart && !hasEnd) {
         await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: new Date() } });
       }
@@ -966,8 +966,8 @@ function computeStageDurationMs(events: any[], eventKey: string) {
   const ordered = [...events].sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
   const startAction = mode === 'start_end' ? 'start' : 'in';
   const endAction = mode === 'start_end' ? 'end' : 'out';
-  const startAt = ordered.find((event) => event.eventKey === eventKey && event.action === startAction)?.happenedAt || null;
-  const endAt = ordered.find((event) => event.eventKey === eventKey && event.action === endAction)?.happenedAt || null;
+  const startAt = ordered.find((event: any) => event.eventKey === eventKey && event.action === startAction)?.happenedAt || null;
+  const endAt = ordered.find((event: any) => event.eventKey === eventKey && event.action === endAction)?.happenedAt || null;
   return computeSpanMs(startAt ? new Date(startAt) : null, endAt ? new Date(endAt) : null);
 }
 
@@ -1001,7 +1001,7 @@ function computeDelayMs(events: any[], plannedStart: string | null | undefined, 
 
   const actual = [...events]
     .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
-    .find((event) => event.eventKey === eventKey && event.action === action)?.happenedAt;
+    .find((event: any) => event.eventKey === eventKey && event.action === action)?.happenedAt;
 
   if (!actual) return null;
   return new Date(actual).getTime() - planned.getTime();
@@ -1033,7 +1033,7 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
 
     const filteredCases = filterDashboardCases(cases, query);
 
-    const completedCases = filteredCases.filter((item) => item.events.some((event) => event.eventKey === 'surgery' && event.action === 'end'));
+    const completedCases = filteredCases.filter((item) => item.events.some((event: any) => event.eventKey === 'surgery' && event.action === 'end'));
     const activeCases = filteredCases.filter((item) => item.status === 'active');
     const inPrepCases = filteredCases.filter((item) => item.status === 'active' && (item.roomPhase === 'open' || item.patientPhase === 'open'));
 
@@ -1046,14 +1046,14 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
     const avgSurgery = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'surgery')));
     const avgRpa = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'rpa')));
     const avgTotalCc = computeAverage(casesForAverages.map((item) => computeSpanMs(
-      item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
-      item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
+      item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
+      item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
     )));
 
     const plannedCount = filteredCases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
-    const patientDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
-    const anesthesiaDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in', item.referenceDate || item.createdAt)));
-    const surgeryTeamDelay = computeAverage(casesForAverages.map((item) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in', item.referenceDate || item.createdAt)));
+    const patientDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
+    const anesthesiaDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in', item.referenceDate || item.createdAt)));
+    const surgeryTeamDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in', item.referenceDate || item.createdAt)));
 
     res.json({
       totalCases: filteredCases.length,
@@ -1091,8 +1091,8 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
         surgeryMs: computeStageDurationMs(item.events, 'surgery'),
         rpaMs: computeStageDurationMs(item.events, 'rpa'),
         totalCcMs: computeSpanMs(
-          item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
-          item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
+          item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
+          item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
         )
       }))
     });
@@ -1189,8 +1189,8 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       const startAction = mode === 'start_end' ? 'start' : 'in';
       const endAction = mode === 'start_end' ? 'end' : 'out';
       const ordered = [...events].sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
-      const startAt = ordered.find((e) => e.eventKey === eventKey && e.action === startAction)?.happenedAt;
-      const endAt = ordered.find((e) => e.eventKey === eventKey && e.action === endAction)?.happenedAt;
+      const startAt = ordered.find((e: any) => e.eventKey === eventKey && e.action === startAction)?.happenedAt;
+      const endAt = ordered.find((e: any) => e.eventKey === eventKey && e.action === endAction)?.happenedAt;
       if (!startAt || !endAt) return null;
       return new Date(endAt).getTime() - new Date(startAt).getTime();
     };
@@ -1235,8 +1235,8 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
 
     for (const caseItem of filteredCases) {
       // Total CC time: transport_patient:start to rpa:out
-      const transportStart = caseItem.events.find((e) => e.eventKey === 'transport_patient' && e.action === 'start')?.happenedAt;
-      const rpaOut = caseItem.events.find((e) => e.eventKey === 'rpa' && e.action === 'out')?.happenedAt;
+      const transportStart = caseItem.events.find((e: any) => e.eventKey === 'transport_patient' && e.action === 'start')?.happenedAt;
+      const rpaOut = caseItem.events.find((e: any) => e.eventKey === 'rpa' && e.action === 'out')?.happenedAt;
       let totalMs = 0;
       if (transportStart && rpaOut) {
         totalMs = new Date(rpaOut).getTime() - new Date(transportStart).getTime();
@@ -1245,7 +1245,7 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
       const totalCost = totalMinutes * costPerMinute;
 
       // Delay calculation
-      const delayInfo = computeCaseDelayMinutes(caseItem);
+      const delayInfo = computeCaseDelayMinutes(caseItem as any);
       const delayMs = delayInfo.delayMs;
 
       const delayMinutes = delayMs / 60000;
@@ -1269,7 +1269,7 @@ app.get('/api/dashboard/costs', authMiddleware, async (req, res) => {
 
       // Per-stage costs
       for (const stageKey of Object.keys(stageLabels)) {
-        const duration = getStageDuration(caseItem.events, stageKey);
+        const duration = getStageDuration(caseItem.events as any[], stageKey);
         if (duration !== null && duration > 0) {
           if (!stageTotals[stageKey]) {
             stageTotals[stageKey] = { label: stageLabels[stageKey], totalMs: 0, count: 0 };
@@ -1459,8 +1459,8 @@ app.get('/api/custom-metrics/results', authMiddleware, async (req, res) => {
       for (const caseItem of cases) {
         const ordered = [...caseItem.events].sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime());
 
-        const startEvent = ordered.find((e) => e.eventKey === metric.startEventKey && e.action === metric.startAction);
-        const endEvent = ordered.find((e) => e.eventKey === metric.endEventKey && e.action === metric.endAction);
+        const startEvent = ordered.find((e: any) => e.eventKey === metric.startEventKey && e.action === metric.startAction);
+        const endEvent = ordered.find((e: any) => e.eventKey === metric.endEventKey && e.action === metric.endAction);
 
         if (startEvent && endEvent) {
           const durationMs = new Date(endEvent.happenedAt).getTime() - new Date(startEvent.happenedAt).getTime();
