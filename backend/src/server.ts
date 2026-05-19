@@ -1045,7 +1045,7 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
     const avgAnesthesia = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'anesthesia')));
     const avgSurgery = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'surgery')));
     const avgRpa = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'rpa')));
-    const avgTotalCc = computeAverage(casesForAverages.map((item) => computeSpanMs(
+    const avgTotalCc = computeAverage(casesForAverages.map((item: any) => computeSpanMs(
       item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
       item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
     )));
@@ -1091,9 +1091,9 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
         surgeryMs: computeStageDurationMs(item.events, 'surgery'),
         rpaMs: computeStageDurationMs(item.events, 'rpa'),
         totalCcMs: computeSpanMs(
-          item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
-          item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
-        )
+            item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
+            item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
+          )
       }))
     });
   } catch (error) {

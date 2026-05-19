@@ -284,7 +284,7 @@ export default function Pacientes() {
             Novo paciente
           </div>
 
-          <form onSubmit={handlePatientSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <form id="patient-form" onSubmit={handlePatientSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <input className="input" placeholder="Nome completo" value={patientForm.fullName} onChange={(e) => setPatientForm({ ...patientForm, fullName: e.target.value })} required />
             <input className="input" placeholder="Número do aviso" value={patientForm.noticeNumber} onChange={(e) => setPatientForm({ ...patientForm, noticeNumber: e.target.value })} />
             <input className="input" placeholder="Número de atendimento" value={patientForm.attendanceNumber} onChange={(e) => setPatientForm({ ...patientForm, attendanceNumber: e.target.value })} />
@@ -342,7 +342,26 @@ export default function Pacientes() {
               </button>
             </div>
 
-            <form onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <button
+                type="submit"
+                form="patient-form"
+                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg"
+              >
+                <Plus size={16} />
+                Salvar paciente
+              </button>
+              <button
+                type="submit"
+                form="schedule-form"
+                className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg"
+              >
+                <CalendarDays size={16} />
+                Salvar agenda manual
+              </button>
+            </div>
+
+            <form id="schedule-form" onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <select className="input" value={scheduleForm.patientId} onChange={(e) => setScheduleForm({ ...scheduleForm, patientId: e.target.value })} required>
                 <option value="">Selecionar paciente</option>
                 {patients.map((patient) => (

@@ -563,7 +563,6 @@ export default function SetupSala() {
       if (missingStages.length > 0) {
         setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
         setShowSequenceWarning(true);
-        return;
       }
     }
 
