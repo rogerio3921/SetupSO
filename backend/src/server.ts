@@ -161,46 +161,12 @@ app.patch('/api/cases/:caseId', async (req, res) => {
 app.post('/api/events', async (req, res) => {
   try {
     const { caseId, eventKey, action, auto, userId } = req.body;
+    const configuredStages = await prisma.timelineStage.findMany({ where: { active: true }, orderBy: { seq: 'asc' } });
+    const timelineOrder = configuredStages.map((s: any) => s.key);
+    const stageLabels: Record<string, string> = configuredStages.reduce((acc: any, s: any) => { acc[s.key] = s.label; return acc; }, {});
+    const eventModeMap: Record<string, string> = configuredStages.reduce((acc: any, s: any) => { acc[s.key] = s.kind; return acc; }, {});
 
-    const timelineOrder = DASHBOARD_STAGE_ORDER;
-
-    const stageLabels: Record<string, string> = {
-      transport_patient: 'Transporte paciente',
-      anesthesia_team: 'Equipe anestésica',
-      surgical_team: 'Equipe cirúrgica',
-      admission_cc: 'Admissão no Pré CC',
-      patient_in_or: 'Paciente em SO',
-      anesthesia: 'Anestesia',
-      positioning: 'Posicionamento',
-      time_out: 'Time out',
-      surgery: 'Cirurgia',
-      cme: 'CME',
-      cleaning: 'Limpeza',
-      pharmacy: 'Farmácia',
-      clinical_engineering: 'Engenharia clínica',
-      rpa: 'RPA',
-      room_setup: 'Montagem de Sala'
-    };
-
-    const getEventMode = (key: string) => {
-      return {
-        patient_in_or: 'in_out',
-        anesthesia: 'start_end',
-        positioning: 'start_end',
-        time_out: 'start_end',
-        surgery: 'start_end',
-        cme: 'in_out',
-        cleaning: 'in_out',
-        pharmacy: 'in_out',
-        clinical_engineering: 'in_out',
-        rpa: 'in_out',
-        room_setup: 'start_end',
-        transport_patient: 'start_end',
-        admission_cc: 'in_out',
-        anesthesia_team: 'in_out',
-        surgical_team: 'in_out'
-      }[key as keyof object];
-    };
+    const getEventMode = (key: string) => eventModeMap[key] || null;
 
     const getEndActionForKey = (key: string) => {
       const mode = getEventMode(key);
