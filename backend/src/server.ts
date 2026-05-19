@@ -329,10 +329,10 @@ app.get('/api/cases/:caseId/events', async (req, res) => {
 
 const DASHBOARD_STAGE_ORDER = [
   'transport_patient',
-  'anesthesia_team',
-  'surgical_team',
   'admission_cc',
   'patient_in_or',
+  'anesthesia_team',
+  'surgical_team',
   'anesthesia',
   'positioning',
   'time_out',
@@ -389,18 +389,31 @@ function formatEventTimestamp(value: string | Date | null | undefined) {
 }
 
 function getPlannedStartAt(caseItem: any) {
-  if (!caseItem.plannedSurgeryTime) return null;
+  const plannedStart = normalizePlannedStart(caseItem.plannedSurgeryTime, caseItem.referenceDate, caseItem.createdAt);
+  return plannedStart;
+}
 
-  if (/^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
-    const refDate = caseItem.referenceDate ? new Date(caseItem.referenceDate) : new Date(caseItem.createdAt);
-    const [hours, minutes] = String(caseItem.plannedSurgeryTime).split(':').map(Number);
+function normalizePlannedStart(plannedStart: unknown, referenceDate?: string | Date | null, createdAt?: string | Date | null) {
+  if (plannedStart === null || plannedStart === undefined) return null;
+
+  const text = String(plannedStart).trim();
+  if (!text) return null;
+
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const refSource = referenceDate || createdAt || new Date();
+    const refDate = new Date(refSource);
+    if (Number.isNaN(refDate.getTime())) return null;
+
+    const [hours, minutes] = text.split(':').map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+
     const planned = new Date(refDate);
     planned.setHours(hours, minutes, 0, 0);
     return planned;
   }
 
-  const planned = new Date(caseItem.plannedSurgeryTime);
-  return Number.isNaN(planned.getTime()) ? null : planned;
+  const isoDate = new Date(text);
+  return Number.isNaN(isoDate.getTime()) ? null : isoDate;
 }
 
 function normalizePlannedSurgeryTime(value: unknown) {
@@ -1010,26 +1023,8 @@ function computeAverage(values: Array<number | null | undefined>) {
 }
 
 function computeDelayMs(events: any[], plannedStart: string | null | undefined, eventKey: string, action: string, referenceDate?: string | Date | null) {
-  if (!plannedStart) return null;
-
-  // plannedSurgeryTime can be "HH:MM" or a full ISO string
-  let planned: Date;
-  if (/^\d{2}:\d{2}$/.test(plannedStart)) {
-    // It's just a time like "08:00", we need a reference date
-    // Use the first event date or referenceDate or today
-    const refDate = referenceDate
-      ? new Date(referenceDate)
-      : events.length > 0
-        ? new Date(events[0].happenedAt)
-        : new Date();
-    const [hours, minutes] = plannedStart.split(':').map(Number);
-    planned = new Date(refDate);
-    planned.setHours(hours, minutes, 0, 0);
-  } else {
-    planned = new Date(plannedStart);
-  }
-
-  if (isNaN(planned.getTime())) return null;
+  const planned = normalizePlannedStart(plannedStart, referenceDate, events.length > 0 ? events[0].happenedAt : null);
+  if (!planned) return null;
 
   const actual = [...events]
     .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
@@ -1560,11 +1555,11 @@ app.get('/api/timeline-stages', authMiddleware, async (req, res) => {
     // If no stages in DB yet, seed with defaults
     if (stages.length === 0) {
       const defaults = [
-        { key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', seq: 1 },
-        { key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', seq: 2 },
-        { key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', seq: 3 },
-        { key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', seq: 4 },
-        { key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', seq: 5 },
+        { key: 'transport_patient', label: 'Transporte paciente', kind: 'start_end', seq: 1 },
+        { key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', seq: 2 },
+        { key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', seq: 3 },
+        { key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', seq: 4 },
+        { key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', seq: 5 },
         { key: 'anesthesia', label: 'Anestesia', kind: 'start_end', seq: 6 },
         { key: 'positioning', label: 'Posicionamento', kind: 'start_end', seq: 7 },
         { key: 'time_out', label: 'Time out', kind: 'start_end', seq: 8 },

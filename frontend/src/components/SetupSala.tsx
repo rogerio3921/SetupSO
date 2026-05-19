@@ -67,6 +67,26 @@ interface TimelineStage {
   actions: Array<{ label: string; action: TimelineActionKey }>;
 }
 
+const CLINICAL_STAGE_ORDER = [
+  'transport_patient',
+  'admission_cc',
+  'patient_in_or',
+  'anesthesia_team',
+  'surgical_team',
+  'anesthesia',
+  'positioning',
+  'time_out',
+  'surgery',
+  'cme',
+  'cleaning',
+  'pharmacy',
+  'clinical_engineering',
+  'rpa',
+  'room_setup'
+];
+
+const CLINICAL_STAGE_INDEX = new Map(CLINICAL_STAGE_ORDER.map((key, index) => [key, index]));
+
 export default function SetupSala() {
   const [rooms, setRooms] = useState<RoomSetup[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -136,17 +156,22 @@ export default function SetupSala() {
             ? [{ label: 'Início', action: 'start' as TimelineActionKey }, { label: 'Fim', action: 'end' as TimelineActionKey }]
             : [{ label: 'Entrada', action: 'in' as TimelineActionKey }, { label: 'Saída', action: 'out' as TimelineActionKey }]
         }))
-        .sort((a: TimelineStage, b: TimelineStage) => a.seq - b.seq);
+        .sort((a: TimelineStage, b: TimelineStage) => {
+          const orderA = CLINICAL_STAGE_INDEX.get(a.key) ?? Number.MAX_SAFE_INTEGER;
+          const orderB = CLINICAL_STAGE_INDEX.get(b.key) ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.seq - b.seq;
+        });
       setTimelineStages(stages);
     } catch (error) {
       console.error('Erro ao carregar etapas do fluxo:', error);
       // Fallback to defaults if API fails
       setTimelineStages([
         { seq: 1, key: 'transport_patient', label: 'Transporte do paciente', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
-        { seq: 2, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-        { seq: 3, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-        { seq: 4, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
-        { seq: 5, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 2, key: 'admission_cc', label: 'Admissão no Pré CC', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 3, key: 'patient_in_or', label: 'Paciente em SO', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 4, key: 'anesthesia_team', label: 'Equipe anestésica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
+        { seq: 5, key: 'surgical_team', label: 'Equipe cirúrgica', kind: 'in_out', actions: [{ label: 'Entrada', action: 'in' }, { label: 'Saída', action: 'out' }] },
         { seq: 6, key: 'anesthesia', label: 'Anestesia', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
         { seq: 7, key: 'positioning', label: 'Posicionamento', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
         { seq: 8, key: 'time_out', label: 'Time out', kind: 'start_end', actions: [{ label: 'Início', action: 'start' }, { label: 'Fim', action: 'end' }] },
@@ -541,11 +566,15 @@ export default function SetupSala() {
   const getMissingPreviousStages = (caseId: string | undefined, stage: TimelineStage) => {
     if (!caseId) return [] as string[];
 
-    const stageIndex = timelineStages.findIndex((item) => item.key === stage.key);
+    const stageIndex = CLINICAL_STAGE_INDEX.get(stage.key) ?? -1;
     if (stageIndex <= 0) return [] as string[];
 
     return timelineStages
-      .slice(0, stageIndex)
+      .filter((previousStage) => {
+        const previousIndex = CLINICAL_STAGE_INDEX.get(previousStage.key);
+        return previousIndex !== undefined && previousIndex < stageIndex;
+      })
+      .sort((a, b) => (CLINICAL_STAGE_INDEX.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (CLINICAL_STAGE_INDEX.get(b.key) ?? Number.MAX_SAFE_INTEGER))
       .filter((previousStage) => {
         const previousEvents = getStageEvents(caseId, previousStage.key);
         const primaryAction = getStagePrimaryAction(previousStage);
