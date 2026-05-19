@@ -274,6 +274,8 @@ app.post('/api/events', async (req, res) => {
           'transport_patient',
           'admission_cc',
           'patient_in_or',
+          'anesthesia_team',
+          'surgical_team',
           'anesthesia',
           'positioning',
           'time_out',
@@ -282,11 +284,10 @@ app.post('/api/events', async (req, res) => {
           'pharmacy',
           'clinical_engineering',
           'rpa',
-          'anesthesia_team',
-          'surgical_team'
         ],
         'rpa:in': ['cleaning'],
-        'room_setup:start': ['rpa']
+        'room_setup:start': ['rpa'],
+        'room_setup:end': ['rpa']
       };
 
       const targets = autoCloseTargets[`${event.eventKey}:${event.action}`] || [];

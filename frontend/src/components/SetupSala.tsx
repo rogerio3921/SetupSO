@@ -67,26 +67,6 @@ interface TimelineStage {
   actions: Array<{ label: string; action: TimelineActionKey }>;
 }
 
-const CLINICAL_STAGE_ORDER = [
-  'transport_patient',
-  'admission_cc',
-  'patient_in_or',
-  'anesthesia_team',
-  'surgical_team',
-  'anesthesia',
-  'positioning',
-  'time_out',
-  'surgery',
-  'cme',
-  'cleaning',
-  'pharmacy',
-  'clinical_engineering',
-  'rpa',
-  'room_setup'
-];
-
-const CLINICAL_STAGE_INDEX = new Map(CLINICAL_STAGE_ORDER.map((key, index) => [key, index]));
-
 export default function SetupSala() {
   const [rooms, setRooms] = useState<RoomSetup[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -111,6 +91,7 @@ export default function SetupSala() {
   const [sequenceWarningMessage, setSequenceWarningMessage] = useState('');
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
   const [closingRoom, setClosingRoom] = useState<RoomSetup | null>(null);
+  const [closingRoomMode, setClosingRoomMode] = useState<'case' | 'room_setup' | null>(null);
   const [timelineStages, setTimelineStages] = useState<TimelineStage[]>([]);
 
   const delayReasons = [
@@ -156,12 +137,7 @@ export default function SetupSala() {
             ? [{ label: 'Início', action: 'start' as TimelineActionKey }, { label: 'Fim', action: 'end' as TimelineActionKey }]
             : [{ label: 'Entrada', action: 'in' as TimelineActionKey }, { label: 'Saída', action: 'out' as TimelineActionKey }]
         }))
-        .sort((a: TimelineStage, b: TimelineStage) => {
-          const orderA = CLINICAL_STAGE_INDEX.get(a.key) ?? Number.MAX_SAFE_INTEGER;
-          const orderB = CLINICAL_STAGE_INDEX.get(b.key) ?? Number.MAX_SAFE_INTEGER;
-          if (orderA !== orderB) return orderA - orderB;
-          return a.seq - b.seq;
-        });
+        .sort((a: TimelineStage, b: TimelineStage) => a.seq - b.seq);
       setTimelineStages(stages);
     } catch (error) {
       console.error('Erro ao carregar etapas do fluxo:', error);
@@ -377,6 +353,7 @@ export default function SetupSala() {
   const handleCloseCase = async (room: RoomSetup) => {
     if (!room.caseId) return;
     setClosingRoom(room);
+    setClosingRoomMode('case');
     setShowCloseConfirmModal(true);
   };
 
@@ -385,6 +362,13 @@ export default function SetupSala() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
+      if (closingRoomMode === 'room_setup') {
+        await axios.post(
+          `${API_URL}/events`,
+          { caseId: closingRoom.caseId, eventKey: 'room_setup', action: 'start' },
+          { headers }
+        );
+      }
       // Request server to close the case, auto-end all open stages, release patient, and clear room
       await axios.post(`${API_URL}/cases/${closingRoom.caseId}/close`, {}, { headers });
       
@@ -399,6 +383,7 @@ export default function SetupSala() {
     } finally {
       setShowCloseConfirmModal(false);
       setClosingRoom(null);
+      setClosingRoomMode(null);
     }
   };
 
@@ -566,15 +551,12 @@ export default function SetupSala() {
   const getMissingPreviousStages = (caseId: string | undefined, stage: TimelineStage) => {
     if (!caseId) return [] as string[];
 
-    const stageIndex = CLINICAL_STAGE_INDEX.get(stage.key) ?? -1;
+    const stageIndex = timelineStages.findIndex((item) => item.key === stage.key);
     if (stageIndex <= 0) return [] as string[];
 
     return timelineStages
-      .filter((previousStage) => {
-        const previousIndex = CLINICAL_STAGE_INDEX.get(previousStage.key);
-        return previousIndex !== undefined && previousIndex < stageIndex;
-      })
-      .sort((a, b) => (CLINICAL_STAGE_INDEX.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (CLINICAL_STAGE_INDEX.get(b.key) ?? Number.MAX_SAFE_INTEGER))
+      .slice(0, stageIndex)
+      .filter((previousStage) => previousStage.key !== 'anesthesia_team' && previousStage.key !== 'surgical_team')
       .filter((previousStage) => {
         const previousEvents = getStageEvents(caseId, previousStage.key);
         const primaryAction = getStagePrimaryAction(previousStage);
@@ -592,6 +574,14 @@ export default function SetupSala() {
       if (missingStages.length > 0) {
         setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
         setShowSequenceWarning(true);
+        return;
+      }
+
+      if (stage.key === 'room_setup' && action === 'start') {
+        setClosingRoom(room);
+        setClosingRoomMode('room_setup');
+        setShowCloseConfirmModal(true);
+        return;
       }
     }
 
@@ -1198,6 +1188,7 @@ export default function SetupSala() {
                 onClick={() => {
                   setShowCloseConfirmModal(false);
                   setClosingRoom(null);
+                  setClosingRoomMode(null);
                 }}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold py-2 px-4 rounded-lg transition-all"
               >
