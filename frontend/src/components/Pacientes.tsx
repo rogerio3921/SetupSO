@@ -61,6 +61,17 @@ const initialPatientForm = {
   estimatedMinutes: ''
 };
 
+function normalizeTimeInput(value: string) {
+  const text = value.trim();
+  if (!text) return '';
+
+  const match = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return '';
+
+  const hour = String(Number(match[1])).padStart(2, '0');
+  return `${hour}:${match[2]}`;
+}
+
 export default function Pacientes() {
   const [currentView, setCurrentView] = useState<ViewId>('cadastro');
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -151,12 +162,14 @@ export default function Pacientes() {
     event.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const scheduledStart = `${scheduleForm.date}T${scheduleForm.time}:00`;
+      const plannedSurgeryTime = normalizeTimeInput(scheduleForm.time);
+      const scheduledStart = `${scheduleForm.date}T${plannedSurgeryTime}:00`;
       await axios.post(
         `${API_URL}/schedules`,
         {
           patientId: scheduleForm.patientId,
           roomId: scheduleForm.roomId,
+          plannedSurgeryTime,
           scheduledStart,
           procedureName: scheduleForm.procedureName,
           estimatedMinutes: scheduleForm.estimatedMinutes ? Number(scheduleForm.estimatedMinutes) : undefined,
@@ -180,12 +193,14 @@ export default function Pacientes() {
     try {
       if (!scheduleForm.roomId) return;
       const token = localStorage.getItem('token');
+      const startTime = normalizeTimeInput(scheduleForm.time);
       await axios.post(
         `${API_URL}/schedules/auto-plan`,
         {
           roomId: scheduleForm.roomId,
           date: scheduleForm.date,
-          startTime: scheduleForm.time
+          startTime,
+          plannedSurgeryTime: startTime
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );

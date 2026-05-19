@@ -403,6 +403,30 @@ function getPlannedStartAt(caseItem: any) {
   return Number.isNaN(planned.getTime()) ? null : planned;
 }
 
+function normalizePlannedSurgeryTime(value: unknown) {
+  if (value === null || value === undefined) return null;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const hhmmMatch = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmmMatch) {
+    const hour = hhmmMatch[1].padStart(2, '0');
+    return `${hour}:${hhmmMatch[2]}`;
+  }
+
+  if (/^\d{1,2}$/.test(text)) {
+    return null;
+  }
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(11, 16);
+  }
+
+  return null;
+}
+
 function formatCaseMoment(caseItem: any) {
   return buildCaseMoment(caseItem).toLocaleString('pt-BR', {
     day: '2-digit',
@@ -646,8 +670,12 @@ app.get('/api/patients', authMiddleware, async (req, res) => {
 
 app.post('/api/patients', authMiddleware, async (req, res) => {
   try {
+    const plannedSurgeryTime = normalizePlannedSurgeryTime(req.body?.plannedSurgeryTime);
     const patient = await prisma.patient.create({
-      data: req.body
+      data: {
+        ...req.body,
+        plannedSurgeryTime
+      }
     });
     res.status(201).json(patient);
   } catch (error) {
@@ -659,6 +687,7 @@ app.patch('/api/patients/:patientId', authMiddleware, async (req, res) => {
   try {
     const { patientId } = req.params;
     const { roomId, status } = req.body;
+    const plannedSurgeryTime = normalizePlannedSurgeryTime(req.body?.plannedSurgeryTime);
 
     // Validate: patient cannot be assigned to a room if already active in another
     if (roomId && status === 'scheduled') {
@@ -681,7 +710,10 @@ app.patch('/api/patients/:patientId', authMiddleware, async (req, res) => {
 
     const patient = await prisma.patient.update({
       where: { id: patientId },
-      data: req.body
+      data: {
+        ...req.body,
+        plannedSurgeryTime: plannedSurgeryTime ?? undefined
+      }
     });
     res.json(patient);
   } catch (error) {
@@ -911,7 +943,7 @@ app.post('/api/integrations/patients/import', authMiddleware, async (req, res) =
         allergies: item.allergies || null,
         procedureName: item.procedureName || item.procedure || null,
         surgeonName: item.surgeonName || item.surgeon || null,
-        plannedSurgeryTime: item.plannedSurgeryTime || item.scheduledTime || null,
+        plannedSurgeryTime: normalizePlannedSurgeryTime(item.plannedSurgeryTime || item.scheduledTime),
         estimatedMinutes: item.estimatedMinutes ? Number(item.estimatedMinutes) : null,
         status: item.status || 'waiting'
       };
