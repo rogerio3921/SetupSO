@@ -158,9 +158,9 @@ app.patch('/api/cases/:caseId', async (req, res) => {
 });
 
 // Events routes
-app.post('/api/events', async (req, res) => {
+app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
   try {
-    const { caseId, eventKey, action, auto, userId } = req.body;
+    const { caseId, eventKey, action, auto, userId, skipAutoRules } = req.body;
     const configuredStages = await prisma.timelineStage.findMany({ where: { active: true }, orderBy: { seq: 'asc' } });
     const timelineOrder = configuredStages.map((s: any) => s.key);
     const stageLabels: Record<string, string> = configuredStages.reduce((acc: any, s: any) => { acc[s.key] = s.label; return acc; }, {});
@@ -226,13 +226,16 @@ app.post('/api/events', async (req, res) => {
         action,
         auto: auto || false,
         userId,
+        skipAutoRules: skipAutoRules || false,
         happenedAt: new Date()
       }
     });
 
     // Rules
     try {
-      const autoCloseTargets: Record<string, string[]> = {
+      // If caller requested to skip auto rules for this event, do not run auto-closure
+      if (!skipAutoRules) {
+        const autoCloseTargets: Record<string, string[]> = {
         'admission_cc:in': ['transport_patient'],
         'patient_in_or:in': ['admission_cc', 'transport_patient'],
         'surgery:start': ['time_out', 'positioning'],
@@ -256,9 +259,10 @@ app.post('/api/events', async (req, res) => {
         'room_setup:end': ['rpa']
       };
 
-      const targets = autoCloseTargets[`${event.eventKey}:${event.action}`] || [];
-      for (const key of targets) {
-        await ensureEndIfStarted(caseId, key);
+        const targets = autoCloseTargets[`${event.eventKey}:${event.action}`] || [];
+        for (const key of targets) {
+          await ensureEndIfStarted(caseId, key);
+        }
       }
     } catch (closureError) {
       console.error('Auto-closure error:', closureError);

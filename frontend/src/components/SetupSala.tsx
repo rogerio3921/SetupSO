@@ -428,9 +428,10 @@ export default function SetupSala() {
   const recordEvent = async (caseId: string, eventKey: string, action: 'start' | 'end' | 'in' | 'out') => {
     try {
       const token = localStorage.getItem('token');
+      const skipAuto = eventKey === 'cleaning';
       await axios.post(
         `${API_URL}/events`,
-        { caseId, eventKey, action },
+        { caseId, eventKey, action, skipAutoRules: skipAuto },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 

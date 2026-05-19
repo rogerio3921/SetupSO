@@ -122,6 +122,7 @@ model Event {
   eventKey    String   // anesthesia_team, surgical_team, etc.
   action      String   // start, end, in, out
   happenedAt  DateTime
+  skipAutoRules Boolean  @default(false)
   createdAt   DateTime @default(now())
   auto        Boolean  @default(false)
   
