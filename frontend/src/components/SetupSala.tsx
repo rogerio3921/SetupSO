@@ -87,8 +87,6 @@ export default function SetupSala() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [schedulePatientId, setSchedulePatientId] = useState<string | null>(null);
   const [scheduleTime, setScheduleTime] = useState('07:00');
-  const [showSequenceWarning, setShowSequenceWarning] = useState(false);
-  const [sequenceWarningMessage, setSequenceWarningMessage] = useState('');
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
   const [closingRoom, setClosingRoom] = useState<RoomSetup | null>(null);
   const [closingRoomMode, setClosingRoomMode] = useState<'case' | 'room_setup' | null>(null);
@@ -429,9 +427,11 @@ export default function SetupSala() {
     try {
       const token = localStorage.getItem('token');
       const skipAuto = eventKey === 'cleaning';
+      // Send client timestamp to avoid server timezone issues
+      const happenedAt = new Date().toISOString();
       await axios.post(
         `${API_URL}/events`,
-        { caseId, eventKey, action, skipAutoRules: skipAuto },
+        { caseId, eventKey, action, skipAutoRules: skipAuto, happenedAt },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -442,12 +442,6 @@ export default function SetupSala() {
         await fetchCaseEvents(active.caseId);
       }
     } catch (error: any) {
-      const missingStages = error?.response?.data?.missingStages as string[] | undefined;
-      if (missingStages && missingStages.length > 0) {
-        setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
-        setShowSequenceWarning(true);
-        return;
-      }
       console.error('Erro ao registrar evento:', error);
     }
   };
@@ -547,43 +541,14 @@ export default function SetupSala() {
       .slice(0, 12);
   };
 
-  const getStagePrimaryAction = (stage: TimelineStage): TimelineActionKey => (stage.kind === 'start_end' ? 'start' : 'in');
-
-  const getMissingPreviousStages = (caseId: string | undefined, stage: TimelineStage) => {
-    if (!caseId) return [] as string[];
-
-    const stageIndex = timelineStages.findIndex((item) => item.key === stage.key);
-    if (stageIndex <= 0) return [] as string[];
-
-    return timelineStages
-      .slice(0, stageIndex)
-      .filter((previousStage) => previousStage.key !== 'anesthesia_team' && previousStage.key !== 'surgical_team')
-      .filter((previousStage) => {
-        const previousEvents = getStageEvents(caseId, previousStage.key);
-        const primaryAction = getStagePrimaryAction(previousStage);
-        return !previousEvents.some((event) => event.action === primaryAction);
-      })
-      .map((item) => item.label);
-  };
-
   const handleStageAction = async (room: RoomSetup, stage: TimelineStage, action: TimelineActionKey) => {
     if (!room.caseId) return;
 
-    const primaryAction = getStagePrimaryAction(stage);
-    if (action === primaryAction) {
-      const missingStages = getMissingPreviousStages(room.caseId, stage);
-      if (missingStages.length > 0) {
-        setSequenceWarningMessage(`Faltam etapas anteriores: ${missingStages.join(', ')}.`);
-        setShowSequenceWarning(true);
-        return;
-      }
-
-      if (stage.key === 'room_setup' && action === 'start') {
-        setClosingRoom(room);
-        setClosingRoomMode('room_setup');
-        setShowCloseConfirmModal(true);
-        return;
-      }
+    if (stage.key === 'room_setup' && action === (stage.kind === 'start_end' ? 'start' : 'in')) {
+      setClosingRoom(room);
+      setClosingRoomMode('room_setup');
+      setShowCloseConfirmModal(true);
+      return;
     }
 
     await recordEvent(room.caseId, stage.key, action);
@@ -1136,29 +1101,6 @@ export default function SetupSala() {
                 className="flex-1 bg-slate-300 hover:bg-slate-400 text-slate-900 font-bold py-2 px-4 rounded-lg transition-all"
               >
                 Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showSequenceWarning && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-amber-200">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertCircle className="text-amber-600" size={32} />
-              <h2 className="text-xl font-bold text-slate-900">Sequência obrigatória</h2>
-            </div>
-            <p className="text-sm text-slate-600 mb-6">{sequenceWarningMessage}</p>
-            <div className="flex justify-end">
-              <button
-                onClick={() => {
-                  setShowSequenceWarning(false);
-                  setSequenceWarningMessage('');
-                }}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg transition-all"
-              >
-                Entendi
               </button>
             </div>
           </div>

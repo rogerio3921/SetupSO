@@ -160,7 +160,10 @@ app.patch('/api/cases/:caseId', async (req, res) => {
 // Events routes
 app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
   try {
-    const { caseId, eventKey, action, auto, userId, skipAutoRules } = req.body;
+    const { caseId, eventKey, action, auto, userId, skipAutoRules, happenedAt: clientHappenedAt } = req.body;
+    // Use client-provided timestamp if available, otherwise server time
+    const eventTime = clientHappenedAt ? new Date(clientHappenedAt) : new Date();
+
     const configuredStages = await prisma.timelineStage.findMany({ where: { active: true }, orderBy: { seq: 'asc' } });
     const timelineOrder = configuredStages.map((s: any) => s.key);
     const stageLabels: Record<string, string> = configuredStages.reduce((acc: any, s: any) => { acc[s.key] = s.label; return acc; }, {});
@@ -188,37 +191,6 @@ app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
       }
     };
 
-    if (!auto && (action === 'start' || action === 'in')) {
-      const currentMode = getEventMode(eventKey);
-      const primaryAction = currentMode ? getPrimaryActionForMode(currentMode) : null;
-      const currentIndex = timelineOrder.indexOf(eventKey);
-
-      if (primaryAction && action === primaryAction && currentIndex > 0) {
-        const missingStages: string[] = [];
-
-        for (const previousKey of timelineOrder.slice(0, currentIndex)) {
-          const previousMode = getEventMode(previousKey);
-          if (!previousMode) continue;
-
-          const previousPrimaryAction = getPrimaryActionForMode(previousMode);
-          const previousEvents = await prisma.event.findMany({ where: { caseId, eventKey: previousKey }, orderBy: { happenedAt: 'asc' } });
-          const hasPrimaryEvent = previousEvents.some((eventItem: any) => eventItem.action === previousPrimaryAction);
-
-          if (!hasPrimaryEvent) {
-            missingStages.push(stageLabels[previousKey] || previousKey);
-          }
-        }
-
-        if (missingStages.length > 0) {
-          return res.status(400).json({
-            error: 'Stage sequence violation',
-            code: 'SEQUENCE_VIOLATION',
-            missingStages
-          });
-        }
-      }
-    }
-
     const event = await prisma.event.create({
       data: {
         caseId,
@@ -227,7 +199,7 @@ app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
         auto: auto || false,
         userId,
         skipAutoRules: skipAutoRules || false,
-        happenedAt: new Date()
+        happenedAt: eventTime
       }
     });
 
