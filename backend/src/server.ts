@@ -226,7 +226,7 @@ app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
           'clinical_engineering',
           'rpa',
         ],
-        'rpa:in': ['cleaning'],
+        'rpa:in': ['patient_in_or', 'cleaning'],
         'room_setup:start': ['rpa'],
         'room_setup:end': ['rpa']
       };

@@ -54,30 +54,39 @@ export default function Login({ onLoginSuccess }: LoginProps) {
         <div className="relative z-10 flex flex-col items-center text-center px-12 max-w-lg">
           {/* Logo SVG */}
           <div className="mb-8">
-            <svg viewBox="0 0 200 200" className="w-48 h-48" aria-hidden="true">
+            <svg viewBox="0 0 220 220" className="w-52 h-52" aria-hidden="true">
               <defs>
                 <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#14b8a6" />
+                  <stop offset="0%" stopColor="#2dd4bf" />
+                  <stop offset="50%" stopColor="#14b8a6" />
                   <stop offset="100%" stopColor="#0d9488" />
                 </linearGradient>
               </defs>
-              {/* Circular arrow */}
+              {/* Circular arrow - thicker, bolder arc */}
               <path
-                d="M 140 30 A 70 70 0 1 0 162 132"
+                d="M 150 28 A 80 80 0 1 0 175 145"
                 fill="none"
                 stroke="url(#ringGrad)"
-                strokeWidth="10"
+                strokeWidth="16"
                 strokeLinecap="round"
               />
               {/* Arrow head */}
-              <polygon points="156,128 168,140 154,138" fill="#14b8a6" />
-              {/* Bed/stretcher icon */}
-              <rect x="60" y="82" width="80" height="8" rx="4" fill="#94a3b8" />
-              <path d="M 80 82 L 72 106 H 128 L 120 82" fill="#64748b" />
-              <rect x="94" y="106" width="12" height="24" rx="2" fill="#64748b" />
-              <circle cx="76" cy="136" r="5" fill="#475569" />
-              <circle cx="124" cy="136" r="5" fill="#475569" />
-              <line x1="66" y1="130" x2="134" y2="130" stroke="#475569" strokeWidth="5" strokeLinecap="round" />
+              <polygon points="145,18 162,35 145,35" fill="#14b8a6" transform="rotate(15, 155, 28)" />
+              {/* Stretcher/bed - surgical table */}
+              {/* Mattress top */}
+              <rect x="68" y="85" width="84" height="12" rx="6" fill="#0f3d5c" />
+              {/* Pillow */}
+              <ellipse cx="78" cy="85" rx="10" ry="6" fill="#0a2e47" />
+              {/* Central column */}
+              <rect x="105" y="97" width="10" height="28" fill="#0f3d5c" />
+              {/* Base crossbar */}
+              <rect x="80" y="125" width="60" height="8" rx="4" fill="#0f3d5c" />
+              {/* Wheels */}
+              <circle cx="88" cy="140" r="6" fill="#0a2e47" />
+              <circle cx="132" cy="140" r="6" fill="#0a2e47" />
+              {/* Small wheel details */}
+              <circle cx="88" cy="140" r="3" fill="#1a4a6b" />
+              <circle cx="132" cy="140" r="3" fill="#1a4a6b" />
             </svg>
           </div>
 

@@ -360,10 +360,13 @@ export default function SetupSala() {
     try {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
+      const happenedAt = new Date().toISOString();
+
       if (closingRoomMode === 'room_setup') {
+        // Register "end" of room_setup before closing
         await axios.post(
           `${API_URL}/events`,
-          { caseId: closingRoom.caseId, eventKey: 'room_setup', action: 'start' },
+          { caseId: closingRoom.caseId, eventKey: 'room_setup', action: 'end', happenedAt },
           { headers }
         );
       }
@@ -544,11 +547,37 @@ export default function SetupSala() {
   const handleStageAction = async (room: RoomSetup, stage: TimelineStage, action: TimelineActionKey) => {
     if (!room.caseId) return;
 
-    if (stage.key === 'room_setup' && action === (stage.kind === 'start_end' ? 'start' : 'in')) {
+    // Rule: "Montagem de Sala" FIM triggers the close-all modal
+    if (stage.key === 'room_setup' && action === (stage.kind === 'start_end' ? 'end' : 'out')) {
       setClosingRoom(room);
       setClosingRoomMode('room_setup');
       setShowCloseConfirmModal(true);
       return;
+    }
+
+    // Rule: "Limpeza" ENTRADA - if patient still in SO, ask to give exit
+    if (stage.key === 'cleaning' && action === 'in') {
+      const patientInOrEvents = getStageEvents(room.caseId, 'patient_in_or');
+      const hasPatientIn = patientInOrEvents.some((e) => e.action === 'in');
+      const hasPatientOut = patientInOrEvents.some((e) => e.action === 'out');
+      if (hasPatientIn && !hasPatientOut) {
+        const confirmExit = window.confirm(
+          'O paciente ainda está em SO. Deseja registrar a SAÍDA do paciente da SO antes de iniciar a limpeza?'
+        );
+        if (confirmExit) {
+          await recordEvent(room.caseId, 'patient_in_or', 'out');
+        }
+      }
+    }
+
+    // Rule: "RPA" ENTRADA - auto exit patient from SO if still there
+    if (stage.key === 'rpa' && action === 'in') {
+      const patientInOrEvents = getStageEvents(room.caseId, 'patient_in_or');
+      const hasPatientIn = patientInOrEvents.some((e) => e.action === 'in');
+      const hasPatientOut = patientInOrEvents.some((e) => e.action === 'out');
+      if (hasPatientIn && !hasPatientOut) {
+        await recordEvent(room.caseId, 'patient_in_or', 'out');
+      }
     }
 
     await recordEvent(room.caseId, stage.key, action);
