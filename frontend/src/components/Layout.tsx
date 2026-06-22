@@ -67,32 +67,29 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
         overflow-hidden
       `}>
         {/* Logo */}
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-black tracking-tight">SetupSO</h1>
-            <span className="px-2 py-1 rounded-full bg-white/15 border border-white/20 text-[11px] font-black">MVP 2</span>
+        <div className="px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-black tracking-tight">SetupSO</h1>
+            <span className="px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-[10px] font-black">MVP 2</span>
           </div>
-          <p className="text-xs text-blue-100/80 mt-2">Salas • Dashboard TV • Relatórios</p>
+          <p className="text-[10px] text-blue-100/80 mt-1">Salas • Dashboard TV • Relatórios</p>
         </div>
 
         {/* User Info */}
-        <div className="p-4 border-b border-white/10 bg-white/5">
-          <p className="text-sm font-bold truncate">{user?.fullName}</p>
-          <p className="text-xs text-blue-100/80 mt-1">{user?.role}</p>
-          {isMaster && (
-            <span className="inline-block mt-2 px-2 py-1 bg-amber-500 text-white text-[11px] font-black rounded-full">
-              MASTER
-            </span>
-          )}
-          {isAdmin && !isMaster && (
-            <span className="inline-block mt-2 px-2 py-1 bg-green-500 text-white text-[11px] font-black rounded-full">
-              ADMIN
-            </span>
-          )}
+        <div className="px-4 py-2 border-b border-white/10 bg-white/5">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold truncate flex-1">{user?.fullName}</p>
+            {isMaster && (
+              <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-black rounded-full">MASTER</span>
+            )}
+            {isAdmin && !isMaster && (
+              <span className="px-2 py-0.5 bg-green-500 text-white text-[10px] font-black rounded-full">ADMIN</span>
+            )}
+          </div>
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+        <nav className="flex-1 overflow-hidden p-3 space-y-1">
           {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
@@ -104,7 +101,7 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
                   closeSidebarOnMobile();
                 }}
                 className={`
-                  w-full flex items-center gap-3 px-4 py-3 rounded-full
+                  w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm
                   transition-all duration-200
                   ${isActive 
                     ? 'bg-white/18 text-white font-black shadow-lg border border-white/20' 
@@ -112,7 +109,7 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
                   }
                 `}
               >
-                <Icon size={20} />
+                <Icon size={18} />
                 <span>{item.label}</span>
               </button>
             );
@@ -120,25 +117,15 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
         </nav>
 
         {/* Footer Menu */}
-        <div className="p-4 border-t border-white/10 space-y-2">
-          <button
-            onClick={() => {
-              onPageChange('setup-sala');
-              closeSidebarOnMobile();
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-blue-100 hover:bg-white/10 transition-all"
-          >
-            <Settings size={20} />
-            <span>Configurações</span>
-          </button>
+        <div className="p-3 border-t border-white/10 space-y-1">
           <button
             onClick={() => {
               onLogout();
               closeSidebarOnMobile();
             }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-red-200 hover:bg-red-500/20 transition-all"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-red-200 hover:bg-red-500/20 transition-all text-sm"
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             <span>Sair</span>
           </button>
         </div>

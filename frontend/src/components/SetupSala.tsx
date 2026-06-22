@@ -694,12 +694,44 @@ export default function SetupSala() {
         </div>
       </div>
 
-      {/* Lista de Salas (coluna única) */}
-      <div className="space-y-4">
+      {/* Grid de Salas - múltiplas por linha quando colapsadas */}
+      {/* Mini cards das outras salas quando uma está expandida */}
+      {selectedRoom && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          {rooms.filter((r) => r.id !== selectedRoom).map((room) => {
+            const { isDelayed } = calculateDelay(room);
+            return (
+              <div
+                key={room.id}
+                onClick={() => setSelectedRoom(room.id)}
+                className={`border-2 rounded-xl p-3 transition-all cursor-pointer hover:shadow-md ${getStatusColor(room)}`}
+              >
+                <div className="flex justify-between items-center">
+                  <h3 className="font-black text-sm">{room.code}</h3>
+                  <ChevronDown size={14} className="text-slate-400" />
+                </div>
+                <p className="text-xs text-slate-600 truncate mt-1">{room.patientName || '—'}</p>
+                <div className={`mt-2 px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
+                  isDelayed ? 'bg-red-200 text-red-900' : 'bg-green-200 text-green-900'
+                }`}>
+                  {getStatusText(room)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className={selectedRoom ? '' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3'}>
         {rooms.map((room) => {
           const { isDelayed, minutes } = calculateDelay(room);
           const roomCaseEvents = room.caseId ? caseEvents.filter((e) => e.caseId === room.caseId) : [];
           const expanded = selectedRoom === room.id;
+
+          // If another room is expanded, it's already shown in the mini grid above
+          if (selectedRoom && !expanded) {
+            return null;
+          }
           
           return (
             <div
