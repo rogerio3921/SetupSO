@@ -1003,7 +1003,7 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
 
     const filteredCases = filterDashboardCases(cases, query);
 
-    const completedCases = filteredCases.filter((item) => item.events.some((event: any) => event.eventKey === 'surgery' && event.action === 'end'));
+    const completedCases = filteredCases.filter((item) => item.status === 'closed');
     const activeCases = filteredCases.filter((item) => item.status === 'active');
     const inPrepCases = filteredCases.filter((item) => item.status === 'active' && (item.roomPhase === 'open' || item.patientPhase === 'open'));
 
@@ -1622,6 +1622,10 @@ app.put('/api/timeline-stages/reorder', authMiddleware, roleMiddleware(['Admin']
 // Reset all data (admin only) - clears cases, events, schedules but keeps rooms, patients, users, config
 app.post('/api/admin/reset-data', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
   try {
+    // Log who triggered the reset
+    const user = (req as any).user;
+    console.log(`[RESET] Dados zerados por: ${user?.fullName || user?.email || 'unknown'} (ID: ${user?.id || '?'}) em ${new Date().toISOString()}`);
+
     // Delete in order of dependencies
     await prisma.event.deleteMany({});
     await prisma.case.deleteMany({});
@@ -1630,6 +1634,13 @@ app.post('/api/admin/reset-data', authMiddleware, roleMiddleware(['Admin']), asy
     // Reset all patients: clear room, status, and planned time
     await prisma.patient.updateMany({
       data: { status: 'waiting', roomId: null, plannedSurgeryTime: null }
+    });
+
+    // Save audit log in config
+    await prisma.ccConfig.upsert({
+      where: { key: 'last_reset' },
+      update: { value: JSON.stringify({ by: user?.fullName || user?.email, userId: user?.id, at: new Date().toISOString() }) },
+      create: { key: 'last_reset', value: JSON.stringify({ by: user?.fullName || user?.email, userId: user?.id, at: new Date().toISOString() }) }
     });
 
     res.json({ success: true, message: 'Todos os dados operacionais foram zerados.' });

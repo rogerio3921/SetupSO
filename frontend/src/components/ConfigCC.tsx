@@ -9,6 +9,10 @@ export default function ConfigCC() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -46,6 +50,46 @@ export default function ConfigCC() {
 
   const updateField = (key: string, value: string) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleResetData = async () => {
+    if (!resetPassword) return;
+    setResetting(true);
+    setResetError('');
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // First verify password by trying to login with current user's email
+      const userStr = localStorage.getItem('user');
+      const currentUser = userStr ? JSON.parse(userStr) : null;
+      if (!currentUser?.email) {
+        setResetError('Erro: usuário não identificado.');
+        setResetting(false);
+        return;
+      }
+
+      // Verify password
+      try {
+        await axios.post(`${API_URL}/auth/login`, { email: currentUser.email, password: resetPassword });
+      } catch {
+        setResetError('Senha incorreta. Tente novamente.');
+        setResetting(false);
+        return;
+      }
+
+      // Password correct - proceed with reset
+      await axios.post(`${API_URL}/admin/reset-data`, {}, { headers });
+      setShowResetModal(false);
+      setResetPassword('');
+      setResetError('');
+      alert('✓ Dados zerados com sucesso! Todos os casos e eventos foram removidos.');
+    } catch (error) {
+      setResetError('Erro ao zerar dados. Tente novamente.');
+      console.error(error);
+    } finally {
+      setResetting(false);
+    }
   };
 
   if (loading) {
@@ -211,19 +255,7 @@ export default function ConfigCC() {
           Zerar todos os dados operacionais (casos, eventos, agendamentos). Pacientes e salas serão mantidos mas resetados para status inicial.
         </p>
         <button
-          onClick={async () => {
-            if (!window.confirm('⚠️ ATENÇÃO: Isso irá apagar TODOS os casos, eventos e agendamentos. Os pacientes voltarão ao status "aguardando". Esta ação NÃO pode ser desfeita. Continuar?')) return;
-            if (!window.confirm('Tem CERTEZA ABSOLUTA? Digite OK para confirmar.')) return;
-            try {
-              const token = localStorage.getItem('token');
-              const headers = { Authorization: `Bearer ${token}` };
-              await axios.post(`${API_URL}/admin/reset-data`, {}, { headers });
-              alert('✓ Dados zerados com sucesso! Todos os casos e eventos foram removidos.');
-            } catch (error) {
-              alert('Erro ao zerar dados.');
-              console.error(error);
-            }
-          }}
+          onClick={() => setShowResetModal(true)}
           className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-lg transition-all"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -232,6 +264,68 @@ export default function ConfigCC() {
           Zerar Todos os Dados
         </button>
       </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-2 border-red-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-red-900">Tem certeza?</h2>
+                <p className="text-sm text-red-700">Esta ação NÃO pode ser desfeita</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <p className="text-sm text-red-800 font-bold mb-2">Serão apagados permanentemente:</p>
+              <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
+                <li>Todos os casos e cirurgias registradas</li>
+                <li>Todos os eventos e tempos</li>
+                <li>Todos os agendamentos</li>
+                <li>Horários previstos dos pacientes</li>
+                <li>Alocação de pacientes nas salas</li>
+              </ul>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-sm font-bold text-slate-700 block mb-1.5">
+                Digite sua senha para confirmar:
+              </label>
+              <input
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder="Sua senha de acesso"
+                className="w-full px-4 py-3 border-2 border-red-200 rounded-xl bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+              />
+              {resetError && (
+                <p className="text-sm text-red-600 font-bold mt-2">{resetError}</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleResetData}
+                disabled={!resetPassword || resetting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetting ? 'Zerando...' : 'Confirmar e Zerar Tudo'}
+              </button>
+              <button
+                onClick={() => { setShowResetModal(false); setResetPassword(''); setResetError(''); }}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
