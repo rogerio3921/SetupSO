@@ -1627,9 +1627,9 @@ app.post('/api/admin/reset-data', authMiddleware, roleMiddleware(['Admin']), asy
     await prisma.case.deleteMany({});
     await prisma.surgerySchedule.deleteMany({});
 
-    // Reset patient status back to waiting
+    // Reset all patients: clear room, status, and planned time
     await prisma.patient.updateMany({
-      data: { status: 'waiting', roomId: null }
+      data: { status: 'waiting', roomId: null, plannedSurgeryTime: null }
     });
 
     res.json({ success: true, message: 'Todos os dados operacionais foram zerados.' });
