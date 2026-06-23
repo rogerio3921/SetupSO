@@ -195,6 +195,43 @@ export default function ConfigCC() {
           </div>
         </div>
       </div>
+
+      {/* Reset Data */}
+      <div className="bg-red-50 rounded-2xl border-2 border-red-200 p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h3 className="text-lg font-black text-red-900">Zona de Perigo</h3>
+            <p className="text-sm text-red-700">Ações irreversíveis</p>
+          </div>
+        </div>
+        <p className="text-sm text-red-800 mb-4">
+          Zerar todos os dados operacionais (casos, eventos, agendamentos). Pacientes e salas serão mantidos mas resetados para status inicial.
+        </p>
+        <button
+          onClick={async () => {
+            if (!window.confirm('⚠️ ATENÇÃO: Isso irá apagar TODOS os casos, eventos e agendamentos. Os pacientes voltarão ao status "aguardando". Esta ação NÃO pode ser desfeita. Continuar?')) return;
+            if (!window.confirm('Tem CERTEZA ABSOLUTA? Digite OK para confirmar.')) return;
+            try {
+              const token = localStorage.getItem('token');
+              const headers = { Authorization: `Bearer ${token}` };
+              await axios.post(`${API_URL}/admin/reset-data`, {}, { headers });
+              alert('✓ Dados zerados com sucesso! Todos os casos e eventos foram removidos.');
+            } catch (error) {
+              alert('Erro ao zerar dados.');
+              console.error(error);
+            }
+          }}
+          className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold px-5 py-2.5 rounded-lg transition-all"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Zerar Todos os Dados
+        </button>
+      </div>
     </div>
   );
 }

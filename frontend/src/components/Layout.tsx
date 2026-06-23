@@ -29,8 +29,8 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
   }, []);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'User', 'Master', 'Usuário'] },
-    { id: 'salas', label: 'Mapa Cirúrgico', icon: LayoutIcon, role: ['Admin', 'User', 'Master', 'Usuário'] },
+    { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['Admin', 'Master'] },
+    { id: 'salas', label: 'Mapa Cirúrgico', icon: LayoutIcon, role: ['Admin', 'Master'] },
     { id: 'setup-sala', label: 'Setup Sala', icon: Clock, role: ['Admin', 'User', 'Master', 'Usuário'] },
     { id: 'pacientes', label: 'Pacientes', icon: Users, role: ['Admin', 'Master'] },
     { id: 'fluxo-sala', label: 'Fluxo de Sala', icon: Settings, role: ['Admin', 'Master'] },

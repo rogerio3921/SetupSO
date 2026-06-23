@@ -4,7 +4,7 @@ import { Plus, Edit2, Trash2, X } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
-type UserRole = 'Usuário' | 'Admin';
+type UserRole = 'Usuário' | 'Master' | 'Admin';
 
 interface User {
   id: string;
@@ -48,7 +48,7 @@ export default function UsersCRUD() {
 
   const departments = ['Enfermagem', 'Médico', 'Anestesiologia', 'Instrumentação'];
   const functions = ['Auxiliar', 'Técnico', 'Enfermeiro'];
-  const profiles: UserRole[] = ['Usuário', 'Admin'];
+  const profiles: UserRole[] = ['Usuário', 'Master', 'Admin'];
 
   useEffect(() => {
     fetchUsers();

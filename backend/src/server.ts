@@ -1619,6 +1619,26 @@ app.put('/api/timeline-stages/reorder', authMiddleware, roleMiddleware(['Admin']
   }
 });
 
+// Reset all data (admin only) - clears cases, events, schedules but keeps rooms, patients, users, config
+app.post('/api/admin/reset-data', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    // Delete in order of dependencies
+    await prisma.event.deleteMany({});
+    await prisma.case.deleteMany({});
+    await prisma.surgerySchedule.deleteMany({});
+
+    // Reset patient status back to waiting
+    await prisma.patient.updateMany({
+      data: { status: 'waiting', roomId: null }
+    });
+
+    res.json({ success: true, message: 'Todos os dados operacionais foram zerados.' });
+  } catch (error) {
+    console.error('Reset data error:', error);
+    res.status(500).json({ error: 'Failed to reset data' });
+  }
+});
+
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err);

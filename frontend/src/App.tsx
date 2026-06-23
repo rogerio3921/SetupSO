@@ -37,7 +37,16 @@ function App() {
       return null;
     }
   });
-  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+  const [currentPage, setCurrentPage] = useState<PageId>(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const u = JSON.parse(storedUser);
+        if (u?.role === 'User' || u?.role === 'Usuário') return 'setup-sala';
+      } catch {}
+    }
+    return 'dashboard';
+  });
 
   useEffect(() => {
     if (!token) {
@@ -56,7 +65,13 @@ function App() {
   const handleLoginSuccess = (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
-    setCurrentPage('dashboard');
+    // User/Usuário goes to Setup Sala; Admin/Master goes to Dashboard
+    const role = newUser?.role || 'User';
+    if (role === 'User' || role === 'Usuário') {
+      setCurrentPage('setup-sala');
+    } else {
+      setCurrentPage('dashboard');
+    }
   };
 
   const renderPage = () => {
