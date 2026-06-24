@@ -790,12 +790,16 @@ app.post('/api/schedules', authMiddleware, async (req, res) => {
     });
 
     if (patient) {
+      // Extract time from the original scheduledStart string (e.g. "2026-06-23T10:00:00" -> "10:00")
+      const timeMatch = String(scheduledStart).match(/T(\d{2}:\d{2})/);
+      const plannedTime = timeMatch ? timeMatch[1] : startDate.toISOString().slice(11, 16);
+
       await prisma.patient.update({
         where: { id: patientId },
         data: {
           roomId,
           status: 'scheduled',
-          plannedSurgeryTime: startDate.toISOString().slice(11, 16),
+          plannedSurgeryTime: plannedTime,
           estimatedMinutes: minutes
         }
       });
@@ -857,7 +861,7 @@ app.post('/api/schedules/auto-plan', authMiddleware, async (req, res) => {
         data: {
           roomId,
           status: 'scheduled',
-          plannedSurgeryTime: start.toISOString().slice(11, 16),
+          plannedSurgeryTime: `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`,
           estimatedMinutes: minutes
         }
       });
@@ -1015,6 +1019,9 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
     const avgAnesthesia = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'anesthesia')));
     const avgSurgery = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'surgery')));
     const avgRpa = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'rpa')));
+    const avgCme = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'cme')));
+    const avgCleaning = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'cleaning')));
+    const avgRoomSetup = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'room_setup')));
     const avgTotalCc = computeAverage(casesForAverages.map((item: any) => computeSpanMs(
       item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
       item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
@@ -1036,6 +1043,9 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
       averageAnesthesiaMs: avgAnesthesia,
       averageSurgeryMs: avgSurgery,
       averageRpaMs: avgRpa,
+      averageCmeMs: avgCme,
+      averageCleaningMs: avgCleaning,
+      averageRoomSetupMs: avgRoomSetup,
       averageTotalCcMs: avgTotalCc,
       averagePatientDelayMs: patientDelay,
       averageAnesthesiaTeamDelayMs: anesthesiaDelay,

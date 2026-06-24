@@ -19,6 +19,9 @@ interface DashboardSummary {
   averageAnesthesiaMs: number | null;
   averageSurgeryMs: number | null;
   averageRpaMs: number | null;
+  averageCmeMs: number | null;
+  averageCleaningMs: number | null;
+  averageRoomSetupMs: number | null;
   averageTotalCcMs: number | null;
   averagePatientDelayMs: number | null;
   averageAnesthesiaTeamDelayMs: number | null;
@@ -32,6 +35,9 @@ interface KPIData {
   averageAnesthesiaMs: number | null;
   averageSurgeryMs: number | null;
   averageRpaMs: number | null;
+  averageCmeMs: number | null;
+  averageCleaningMs: number | null;
+  averageRoomSetupMs: number | null;
   averageTotalCcMs: number | null;
   averagePatientDelayMs: number | null;
   averageAnesthesiaTeamDelayMs: number | null;
@@ -97,6 +103,9 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
     averageAnesthesiaMs: null,
     averageSurgeryMs: null,
     averageRpaMs: null,
+    averageCmeMs: null,
+    averageCleaningMs: null,
+    averageRoomSetupMs: null,
     averageTotalCcMs: null,
     averagePatientDelayMs: null,
     averageAnesthesiaTeamDelayMs: null,
@@ -182,6 +191,9 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         averageAnesthesiaMs: summaryRes.data.averageAnesthesiaMs ?? null,
         averageSurgeryMs: summaryRes.data.averageSurgeryMs ?? null,
         averageRpaMs: summaryRes.data.averageRpaMs ?? null,
+        averageCmeMs: summaryRes.data.averageCmeMs ?? null,
+        averageCleaningMs: summaryRes.data.averageCleaningMs ?? null,
+        averageRoomSetupMs: summaryRes.data.averageRoomSetupMs ?? null,
         averageTotalCcMs: summaryRes.data.averageTotalCcMs ?? null,
         averagePatientDelayMs: summaryRes.data.averagePatientDelayMs ?? null,
         averageAnesthesiaTeamDelayMs: summaryRes.data.averageAnesthesiaTeamDelayMs ?? null,
@@ -729,6 +741,23 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-cyan-500">
+          <p className="text-sm text-slate-600 font-bold">CME</p>
+          <p className="text-3xl font-black text-cyan-600 mt-2">{formatMs(kpiData.averageCmeMs)}</p>
+          <p className="text-xs text-slate-500 mt-1">entrada → saída CME</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-orange-500">
+          <p className="text-sm text-slate-600 font-bold">LIMPEZA</p>
+          <p className="text-3xl font-black text-orange-600 mt-2">{formatMs(kpiData.averageCleaningMs)}</p>
+          <p className="text-xs text-slate-500 mt-1">entrada → saída limpeza</p>
+        </div>
+        <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-teal-500">
+          <p className="text-sm text-slate-600 font-bold">MONTAGEM DE SALA</p>
+          <p className="text-3xl font-black text-teal-600 mt-2">{formatMs(kpiData.averageRoomSetupMs)}</p>
+          <p className="text-xs text-slate-500 mt-1">início → fim montagem</p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO PACIENTE</p>

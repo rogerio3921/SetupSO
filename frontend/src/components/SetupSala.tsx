@@ -768,6 +768,9 @@ export default function SetupSala() {
                   <strong>Procedimento:</strong> {room.procedureName || '—'}
                 </p>
                 <p className="text-xs text-slate-600">
+                  <strong>Cirurgião:</strong> {room.surgeonName || '—'}
+                </p>
+                <p className="text-xs text-slate-600">
                   <strong>Hora Prevista:</strong> {room.scheduledStart || '—'}
                 </p>
                 <div className={`mt-2 px-2 py-1 rounded text-xs font-bold ${
