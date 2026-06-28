@@ -5,6 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const rateLimit = require("express-rate-limit");
 const { getDb } = require("./db");
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -15,6 +16,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../public")));
+
+/* ------------------------------------------------------------------ */
+/*  Rate limiters                                                       */
+/* ------------------------------------------------------------------ */
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas tentativas de login. Tente novamente em 15 minutos." }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Muitas requisições. Tente novamente em instantes." }
+});
+
+app.use("/api/auth/login", loginLimiter);
+app.use("/api", apiLimiter);
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                             */

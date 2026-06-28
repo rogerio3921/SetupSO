@@ -82,9 +82,9 @@ O banco é criado automaticamente em `data/setupso.db` com um tenant de demonstr
 2. `POST /api/auth/login` valida as credenciais dentro do tenant
 3. O servidor retorna um token JWT
 4. O frontend armazena `token` + `tenantSlug` no `localStorage`
-5. Todas as chamadas subsequentes incluem:
-   - `Authorization: ******
-   - `X-Tenant-Slug: <slug>`
+5. Todas as chamadas subsequentes incluem os headers:
+   - Authorization: ******
+   - X-Tenant-Slug: <slug>
 
 ---
 
