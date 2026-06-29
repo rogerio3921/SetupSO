@@ -423,9 +423,14 @@ function getDashboardCaseFilters(query: Record<string, string | undefined>) {
 
 function filterDashboardCases(cases: any[], query: Record<string, string | undefined>) {
   const { roomId, rangeStart, rangeEnd } = getDashboardCaseFilters(query);
+  const patientFilter = query.patient?.toLowerCase().trim();
 
   return cases.filter((caseItem) => {
     if (roomId && caseItem.roomId !== roomId) {
+      return false;
+    }
+
+    if (patientFilter && !(caseItem.patientFullName || '').toLowerCase().includes(patientFilter)) {
       return false;
     }
 
@@ -1029,8 +1034,8 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
 
     const plannedCount = filteredCases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
     const patientDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
-    const anesthesiaDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia_team', 'in', item.referenceDate || item.createdAt)));
-    const surgeryTeamDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgical_team', 'in', item.referenceDate || item.createdAt)));
+    const anesthesiaDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia', 'start', item.referenceDate || item.createdAt)));
+    const surgeryTeamDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgery', 'start', item.referenceDate || item.createdAt)));
 
     res.json({
       totalCases: filteredCases.length,

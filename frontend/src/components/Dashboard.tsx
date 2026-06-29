@@ -85,11 +85,12 @@ interface TimelineStage {
 
 export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  const [filterMode, setFilterMode] = useState<'all' | 'day' | 'month' | 'range' | 'room'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'day' | 'month' | 'range' | 'room' | 'patient'>('all');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().slice(0, 10));
   const [filterFrom, setFilterFrom] = useState(new Date().toISOString().slice(0, 10));
   const [filterTo, setFilterTo] = useState(new Date().toISOString().slice(0, 10));
   const [filterRoomId, setFilterRoomId] = useState('');
+  const [filterPatientName, setFilterPatientName] = useState('');
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -136,6 +137,8 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
       params.set('to', filterTo);
     } else if (filterMode === 'room' && filterRoomId) {
       params.set('roomId', filterRoomId);
+    } else if (filterMode === 'patient' && filterPatientName) {
+      params.set('patient', filterPatientName);
     }
 
     return params.toString();
@@ -579,7 +582,8 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
                 { id: 'day', label: 'Dia' },
                 { id: 'month', label: 'Mês' },
                 { id: 'range', label: 'Período' },
-                { id: 'room', label: 'Sala' }
+                { id: 'room', label: 'Sala' },
+                { id: 'patient', label: 'Paciente' }
               ].map((option) => (
                 <button
                   key={option.id}
@@ -651,12 +655,26 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
               </div>
             )}
 
+            {filterMode === 'patient' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Nome do paciente</label>
+                <input
+                  type="text"
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white w-52"
+                  placeholder="Buscar paciente..."
+                  value={filterPatientName}
+                  onChange={(e) => setFilterPatientName(e.target.value)}
+                />
+              </div>
+            )}
+
             {filterMode !== 'all' && (
               <button
                 type="button"
                 onClick={() => {
                   setFilterMode('all');
                   setFilterRoomId('');
+                  setFilterPatientName('');
                 }}
                 className="h-11 px-4 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition-all"
               >
@@ -762,17 +780,17 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO PACIENTE</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averagePatientDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">agendado vs entrada real no CC</p>
+          <p className="text-xs text-slate-500 mt-1">horário previsto vs entrada em SO</p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO ANESTESIA</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averageAnesthesiaTeamDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">agendado vs entrada da equipe anestésica</p>
+          <p className="text-xs text-slate-500 mt-1">horário previsto vs início da anestesia</p>
         </div>
         <div className="bg-white rounded-lg shadow-lg p-5 border border-slate-200">
           <p className="text-sm text-slate-600 font-bold">ATRASO CIRURGIA</p>
           <p className="text-2xl font-black text-slate-900 mt-2">{formatMs(kpiData.averageSurgeryTeamDelayMs)}</p>
-          <p className="text-xs text-slate-500 mt-1">agendado vs início real da cirurgia</p>
+          <p className="text-xs text-slate-500 mt-1">horário previsto vs início da cirurgia</p>
         </div>
       </div>
 
