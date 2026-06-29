@@ -1010,6 +1010,10 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Get inactive stages - if a stage is inactive, its duration should be 0 (not null)
+    const allStages = await prisma.timelineStage.findMany();
+    const inactiveStageKeys = new Set(allStages.filter((s) => !s.active).map((s) => s.key));
+
     const filteredCases = filterDashboardCases(cases, query);
 
     const completedCases = filteredCases.filter((item) => item.status === 'closed');
@@ -1027,15 +1031,33 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
     const avgCme = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'cme')));
     const avgCleaning = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'cleaning')));
     const avgRoomSetup = computeAverage(casesForAverages.map((item) => computeStageDurationMs(item.events, 'room_setup')));
-    const avgTotalCc = computeAverage(casesForAverages.map((item: any) => computeSpanMs(
-      item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'transport_patient' && event.action === 'start')!.happenedAt) : null,
-      item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')?.happenedAt ? new Date(item.events.find((event: any) => event.eventKey === 'rpa' && event.action === 'out')!.happenedAt) : null
-    )));
+    // TEMPO TOTAL CC: from transport_patient:start to the last relevant exit event
+    // Priority: rpa:out > patient_in_or:out > surgery:end (fallback chain)
+    const avgTotalCc = computeAverage(casesForAverages.map((item: any) => {
+      const startEvent = item.events.find((e: any) => e.eventKey === 'transport_patient' && e.action === 'start');
+      if (!startEvent) return null;
+      const startAt = new Date(startEvent.happenedAt);
+
+      // Try rpa:out first, then patient_in_or:out, then surgery:end
+      const endEvent = item.events.find((e: any) => e.eventKey === 'rpa' && e.action === 'out')
+        || item.events.find((e: any) => e.eventKey === 'patient_in_or' && e.action === 'out')
+        || item.events.find((e: any) => e.eventKey === 'surgery' && e.action === 'end');
+
+      if (!endEvent) return null;
+      const endAt = new Date(endEvent.happenedAt);
+      return endAt.getTime() - startAt.getTime();
+    }));
 
     const plannedCount = filteredCases.filter((item) => String(item.plannedSurgeryTime || '').trim()).length;
     const patientDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'patient_in_or', 'in', item.referenceDate || item.createdAt)));
     const anesthesiaDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'anesthesia', 'start', item.referenceDate || item.createdAt)));
     const surgeryTeamDelay = computeAverage(casesForAverages.map((item: any) => computeDelayMs(item.events, item.plannedSurgeryTime, 'surgery', 'start', item.referenceDate || item.createdAt)));
+
+    // For inactive stages: if the computed average is null but the stage is inactive, show 0 instead of null
+    const zeroIfInactive = (value: number | null, stageKey: string) => {
+      if (value !== null) return value;
+      return inactiveStageKeys.has(stageKey) ? 0 : null;
+    };
 
     res.json({
       totalCases: filteredCases.length,
@@ -1043,14 +1065,14 @@ app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
       activeCases: activeCases.length,
       inPrepCases: inPrepCases.length,
       plannedCount,
-      averageTransportToOrMs: avgTransportToOr,
-      averageOrMs: avgOr,
-      averageAnesthesiaMs: avgAnesthesia,
-      averageSurgeryMs: avgSurgery,
-      averageRpaMs: avgRpa,
-      averageCmeMs: avgCme,
-      averageCleaningMs: avgCleaning,
-      averageRoomSetupMs: avgRoomSetup,
+      averageTransportToOrMs: zeroIfInactive(avgTransportToOr, 'transport_patient'),
+      averageOrMs: zeroIfInactive(avgOr, 'patient_in_or'),
+      averageAnesthesiaMs: zeroIfInactive(avgAnesthesia, 'anesthesia'),
+      averageSurgeryMs: zeroIfInactive(avgSurgery, 'surgery'),
+      averageRpaMs: zeroIfInactive(avgRpa, 'rpa'),
+      averageCmeMs: zeroIfInactive(avgCme, 'cme'),
+      averageCleaningMs: zeroIfInactive(avgCleaning, 'cleaning'),
+      averageRoomSetupMs: zeroIfInactive(avgRoomSetup, 'room_setup'),
       averageTotalCcMs: avgTotalCc,
       averagePatientDelayMs: patientDelay,
       averageAnesthesiaTeamDelayMs: anesthesiaDelay,

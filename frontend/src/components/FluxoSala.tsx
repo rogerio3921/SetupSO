@@ -131,6 +131,21 @@ export default function FluxoSala() {
     }
   };
 
+  const handleDelete = async (stage: TimelineStage) => {
+    if (!window.confirm(`Excluir a etapa "${stage.label}"?\n\nOs dados já registrados (tempos/eventos) serão mantidos nos cálculos do dashboard. Apenas o botão deixará de aparecer no Setup de Sala.`)) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.delete(`${API_URL}/timeline-stages/${stage.id}`, { headers });
+      await fetchStages();
+    } catch (error) {
+      console.error('Erro ao excluir etapa:', error);
+      alert('Erro ao excluir etapa.');
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-slate-600">Carregando fluxo de sala...</div>;
   }
@@ -250,6 +265,13 @@ export default function FluxoSala() {
                     title="Editar"
                   >
                     <Pencil size={16} className="text-blue-600" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(stage)}
+                    className="p-2 rounded-lg hover:bg-red-50 transition-all"
+                    title="Excluir"
+                  >
+                    <X size={16} className="text-red-600" />
                   </button>
                 </div>
               </div>

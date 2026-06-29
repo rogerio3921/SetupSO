@@ -656,15 +656,25 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
             )}
 
             {filterMode === 'patient' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Nome do paciente</label>
-                <input
-                  type="text"
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white w-52"
-                  placeholder="Buscar paciente..."
-                  value={filterPatientName}
-                  onChange={(e) => setFilterPatientName(e.target.value)}
-                />
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Nome do paciente</label>
+                  <input
+                    type="text"
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white w-52"
+                    placeholder="Digite o nome..."
+                    value={filterPatientName}
+                    onChange={(e) => setFilterPatientName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') refreshDashboard(); }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={refreshDashboard}
+                  className="h-[38px] px-4 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all"
+                >
+                  Pesquisar
+                </button>
               </div>
             )}
 
