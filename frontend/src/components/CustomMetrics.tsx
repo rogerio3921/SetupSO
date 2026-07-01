@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, X, Calculator, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Calculator, Eye, EyeOff, ArrowUp, ArrowDown } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
@@ -192,6 +192,31 @@ export default function CustomMetrics() {
     }
   };
 
+  const moveMetric = async (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= metrics.length) return;
+
+    const newMetrics = [...metrics];
+    const temp = newMetrics[index];
+    newMetrics[index] = newMetrics[targetIndex];
+    newMetrics[targetIndex] = temp;
+
+    // Update order numbers
+    const reordered = newMetrics.map((m, i) => ({ ...m, order: i + 1 }));
+    setMetrics(reordered);
+
+    // Save to backend
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const payload = reordered.map((m) => ({ id: m.id, order: m.order }));
+      await axios.put(`${API_URL}/custom-metrics/reorder`, { metrics: payload }, { headers });
+    } catch (error) {
+      console.error('Erro ao reordenar:', error);
+      await fetchMetrics(); // revert on error
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-12 text-slate-600">Carregando cálculos...</div>;
   }
@@ -238,7 +263,7 @@ export default function CustomMetrics() {
         </div>
       ) : (
         <div className="space-y-3">
-          {metrics.map((metric) => (
+          {metrics.map((metric, index) => (
             <div
               key={metric.id}
               className={`bg-white rounded-2xl shadow-sm border p-5 hover:shadow-md transition-all ${metric.isDefault ? 'border-slate-200' : 'border-indigo-200'}`}
@@ -274,7 +299,23 @@ export default function CustomMetrics() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => moveMetric(index, 'up')}
+                    disabled={index === 0}
+                    className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    title="Mover para cima"
+                  >
+                    <ArrowUp size={18} className="text-indigo-600" />
+                  </button>
+                  <button
+                    onClick={() => moveMetric(index, 'down')}
+                    disabled={index === metrics.length - 1}
+                    className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    title="Mover para baixo"
+                  >
+                    <ArrowDown size={18} className="text-indigo-600" />
+                  </button>
                   <button
                     onClick={() => toggleDashboard(metric)}
                     className={`p-2 rounded-lg transition-all ${metric.showOnDashboard ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}

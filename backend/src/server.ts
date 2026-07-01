@@ -1409,6 +1409,28 @@ app.delete('/api/custom-metrics/:metricId', authMiddleware, roleMiddleware(['Adm
   }
 });
 
+// Reorder custom metrics
+app.put('/api/custom-metrics/reorder', authMiddleware, roleMiddleware(['Admin']), async (req, res) => {
+  try {
+    const { metrics } = req.body;
+    if (!Array.isArray(metrics)) {
+      return res.status(400).json({ error: 'metrics array is required' });
+    }
+
+    for (const item of metrics) {
+      await prisma.customMetric.update({
+        where: { id: item.id },
+        data: { order: item.order }
+      });
+    }
+
+    const updated = await prisma.customMetric.findMany({ orderBy: { order: 'asc' } });
+    res.json(updated);
+  } catch (error) {
+    res.status(400).json({ error: 'Failed to reorder custom metrics' });
+  }
+});
+
 // Compute custom metrics results (for dashboard and reports)
 app.get('/api/custom-metrics/results', authMiddleware, async (req, res) => {
   try {

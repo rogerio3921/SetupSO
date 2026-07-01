@@ -69,6 +69,11 @@ export default function SalasCirurgicas() {
   const [schedulePatientId, setSchedulePatientId] = useState<string>('');
   const [scheduleTime, setScheduleTime] = useState('08:00');
 
+  // Add room modal
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [newRoomCode, setNewRoomCode] = useState('');
+  const [newRoomName, setNewRoomName] = useState('');
+
   useEffect(() => {
     fetchAll();
     const interval = setInterval(fetchAll, 10000);
@@ -227,6 +232,13 @@ export default function SalasCirurgicas() {
               Agendar
             </button>
             <button
+              onClick={() => setShowAddRoomModal(true)}
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-all"
+            >
+              <Plus size={16} />
+              Incluir Sala
+            </button>
+            <button
               onClick={fetchAll}
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg transition-all"
             >
@@ -280,38 +292,37 @@ export default function SalasCirurgicas() {
               {/* Patient Info */}
               {(activeCase?.patientFullName || scheduledPatient) && (
                 <div className="bg-white rounded-xl p-3 border border-slate-200 mb-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <User size={14} className="text-slate-500" />
-                    <span className="text-sm font-bold text-slate-900">
-                      {activeCase?.patientFullName || scheduledPatient?.fullName || '—'}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <User size={14} className="text-slate-500" />
+                      <span className="text-sm font-bold text-slate-900 uppercase">
+                        {activeCase?.patientFullName || scheduledPatient?.fullName || '—'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {activeCase?.birthDate || scheduledPatient?.birthDate || ''}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Stethoscope size={14} className="text-slate-500" />
-                    <span className="text-xs text-slate-700">
+                    <span className="text-xs text-slate-700 uppercase">
                       {activeCase?.procedureName || scheduledPatient?.procedureName || '—'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-500">Cirurgião: </span>
-                      <span className="font-bold text-slate-800">{activeCase?.surgeonName || scheduledPatient?.surgeonName || '—'}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Nasc: </span>
-                      <span className="font-bold text-slate-800">{activeCase?.birthDate || scheduledPatient?.birthDate || '—'}</span>
-                    </div>
+                  <div className="text-xs">
+                    <span className="text-slate-500">Cirurgião: </span>
+                    <span className="font-bold text-slate-800 uppercase">{activeCase?.surgeonName || scheduledPatient?.surgeonName || '—'}</span>
                   </div>
                   {(activeCase?.allergies || scheduledPatient?.allergies) && (
                     <div className="flex items-center gap-1 text-xs">
                       <AlertTriangle size={12} className="text-red-500" />
-                      <span className="text-red-700 font-bold">{activeCase?.allergies || scheduledPatient?.allergies}</span>
+                      <span className="text-red-700 font-bold uppercase">{activeCase?.allergies || scheduledPatient?.allergies}</span>
                     </div>
                   )}
                   {activeCase?.plannedSurgeryTime && (
                     <div className="flex items-center gap-1 text-xs">
                       <Calendar size={12} className="text-slate-500" />
-                      <span className="text-slate-700">Previsto: <strong>{activeCase.plannedSurgeryTime}</strong></span>
+                      <span className="text-slate-700">PREVISTO: <strong>{activeCase.plannedSurgeryTime}</strong></span>
                     </div>
                   )}
 
@@ -477,6 +488,67 @@ export default function SalasCirurgicas() {
               </button>
               <button
                 onClick={() => setShowScheduleModal(false)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Room Modal */}
+      {showAddRoomModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-black text-slate-900">INCLUIR NOVA SALA</h2>
+              <button onClick={() => setShowAddRoomModal(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">Código da sala</label>
+                <input
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg uppercase"
+                  placeholder="Ex: SALA 5"
+                  value={newRoomCode}
+                  onChange={(e) => setNewRoomCode(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">Nome da sala</label>
+                <input
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  placeholder="Ex: Sala de Cirurgia 5"
+                  value={newRoomName}
+                  onChange={(e) => setNewRoomName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={async () => {
+                  if (!newRoomCode.trim()) { alert('Código é obrigatório.'); return; }
+                  try {
+                    const token = localStorage.getItem('token');
+                    const headers = { Authorization: `Bearer ${token}` };
+                    await axios.post(`${API_URL}/rooms`, { code: newRoomCode.trim(), name: newRoomName.trim() || newRoomCode.trim() }, { headers });
+                    setShowAddRoomModal(false);
+                    setNewRoomCode('');
+                    setNewRoomName('');
+                    await fetchAll();
+                  } catch (error: any) {
+                    alert(error?.response?.data?.error || 'Erro ao criar sala.');
+                  }
+                }}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-all"
+              >
+                Criar Sala
+              </button>
+              <button
+                onClick={() => setShowAddRoomModal(false)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg transition-all"
               >
                 Cancelar

@@ -350,72 +350,46 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
             <X size={24} />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-slate-900">Dashboard - {expandedRoom.code}</h1>
-            <p className="text-xs text-slate-500">Visão em tempo real do caso ativo e suas durações.</p>
+            <h1 className="text-3xl font-black text-slate-900">{expandedRoom.code} - {expandedRoom.name}</h1>
+            <p className="text-xs text-slate-500">Consulta dos tempos e movimentos registrados.</p>
           </div>
         </div>
 
-        {/* Layout: Card + Tempos */}
+        {/* Layout: Card + Timeline */}
         <div className="grid grid-cols-12 gap-6">
-          {/* Coluna Esquerda: Card da Sala */}
+          {/* Coluna Esquerda: Dados do Caso */}
           <div className="col-span-12 lg:col-span-3">
             <div className="bg-gradient-to-br from-[#0b2a4a] via-[#0f3c6e] to-[#134e91] text-white rounded-2xl p-6 border border-white/10 shadow-lg">
-              <p className="text-xl font-bold text-slate-900 mb-2">{expandedRoom.code} - {expandedRoom.name}</p>
-
-              {onOpenSetupSala && (
-                <button
-                  type="button"
-                  onClick={() => onOpenSetupSala(expandedRoom.id)}
-                  className="mb-4 w-full bg-white text-slate-900 font-black py-2 px-4 rounded-full transition-all"
-                >
-                  Iniciar cirurgia nesta sala
-                </button>
-              )}
+              <p className="text-xl font-bold text-white mb-4">{expandedRoom.code}</p>
               
               {expandedCase ? (
                 <>
                   <div className="mb-4">
                     <p className="text-xs text-white/75 font-black uppercase tracking-wide">CIRURGIÃO</p>
-                    <p className="text-lg font-bold text-white">{expandedCase.surgeon || 'N/A'}</p>
+                    <p className="text-lg font-bold text-white uppercase">{expandedCase.surgeonName || 'N/A'}</p>
                   </div>
                   
                   <div className="mb-4">
                     <p className="text-xs text-white/75 font-black uppercase tracking-wide">PACIENTE</p>
-                    <p className="text-lg font-bold text-white">{expandedCase.patientFullName || 'N/A'}</p>
+                    <p className="text-lg font-bold text-white uppercase">{expandedCase.patientFullName || 'N/A'}</p>
                   </div>
 
                   <div className="mb-4">
                     <p className="text-xs text-white/75 font-black uppercase tracking-wide">PROCEDIMENTO</p>
-                    <p className="text-lg font-bold text-white">{expandedCase.procedureName || 'N/A'}</p>
+                    <p className="text-lg font-bold text-white uppercase">{expandedCase.procedureName || 'N/A'}</p>
                   </div>
 
                   <div className="mb-4 p-3 bg-white/10 rounded-xl border border-white/15">
                     <p className="text-xs text-white/70">STATUS</p>
-                    <p className="text-lg font-black text-white">{expandedCase.status || 'LIBERADO'}</p>
+                    <p className="text-lg font-black text-white uppercase">{expandedCase.status || 'ATIVO'}</p>
                   </div>
 
                   {expandedCase.delayReason && (
                     <div className="mb-4 p-3 bg-amber-500/20 rounded-xl border border-amber-300/20">
-                      <p className="text-xs text-slate-500">JUSTIFICATIVA DE ATRASO</p>
+                      <p className="text-xs text-white/70">ATRASO</p>
                       <p className="text-sm font-bold text-white">{expandedCase.delayReason}</p>
                     </div>
                   )}
-
-                  {/* Tempos Totais */}
-                  <div className="space-y-3 mt-6">
-                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-                      <p className="text-xs text-white/70">TEMPO TOTAL DA SALA</p>
-                      <p className="text-2xl font-black text-white">03h45</p>
-                    </div>
-                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-                      <p className="text-xs text-white/70">MÉDIA TOTAL DE SALA</p>
-                      <p className="text-2xl font-black text-white">03h15</p>
-                    </div>
-                    <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-                      <p className="text-xs text-white/70">INTERVALO ENTRE CIRURGIAS</p>
-                      <p className="text-2xl font-black text-white">00h26</p>
-                    </div>
-                  </div>
                 </>
               ) : (
                 <p className="text-white/80 italic">Sala disponível</p>
@@ -423,121 +397,68 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
             </div>
           </div>
 
-          {/* Coluna Direita: Grid de Tempos e Movimentos */}
+          {/* Coluna Direita: Linha do tempo registrada */}
           <div className="col-span-12 lg:col-span-9">
             <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-6">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">SETUP DE SALA – TEMPOS E MOVIMENTOS</h2>
-                  <p className="text-xs text-slate-500">Linha do tempo e cartões de ações da sala atual.</p>
+                  <h2 className="text-xl font-black text-slate-900">TEMPOS E MOVIMENTOS REGISTRADOS</h2>
+                  <p className="text-xs text-slate-500">Linha do tempo com os registros da sala.</p>
                 </div>
-                <span className="text-xs font-black px-2 py-1 rounded-full bg-slate-100 text-slate-600">Tempo real</span>
-              </div>
-              
-              {/* Grid 3x5 de Tempos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {/* Linha 1: Transporte */}
-                <TimeCard label="TRANSPORTE" fields={['PACIENTE INICIO / FIM']} />
-                
-                {/* Linha 2: Paciente em SO */}
-                <TimeCard label="PACIENTE EM SO" fields={['ENTRADA / SAÍDA']} />
-                
-                {/* Linha 3: Anestesia */}
-                <TimeCard label="ANESTESIA" fields={['INICIO / FIM']} />
-
-                {/* Linha 4: Posicionamento */}
-                <TimeCard label="POSICIONAMENTO" fields={['O INICIO / FIM']} />
-                
-                {/* Linha 5: Time Out */}
-                <TimeCard label="TIME OUT" fields={['INICIO / FIM']} />
-                
-                {/* Linha 6: Cirurgia */}
-                <TimeCard label="CIRURGIA" fields={['INICIO / FIM']} />
-
-                {/* Linha 7: CME */}
-                <TimeCard label="CHAMAR CME" fields={['ENTRADA / SAÍDA']} />
-                
-                {/* Linha 8: Limpeza */}
-                <TimeCard label="CHAMAR LIMPEZA" fields={['ENTRADA / SAÍDA']} />
-                
-                {/* Linha 9: Farmácia */}
-                <TimeCard label="CHAMAR FARMÁCIA" fields={['ENTRADA / SAÍDA']} />
-
-                {/* Linha 10: Eng Clínica */}
-                <TimeCard label="CHAMAR ENG CLINICA" fields={['ENTRADA / SAÍDA']} />
-                
-                {/* Linha 11: Montagem */}
-                <TimeCard label="MONTAGEM SALA" fields={['INICIO / FIM']} />
-                
-                {/* Linha 12: Equipes */}
-                <TimeCard label="EQUIPE ANESTESIA" fields={['CHEGADA']} />
-
-                {/* Extras para grid completo */}
-                <TimeCard label="EQUIPE CIRÚRGICA" fields={['ENTRADA / SAÍDA']} />
-                <TimeCard label="EQUIPAMENTO" fields={['ENTRADA / SAÍDA']} />
-                <TimeCard label="LIMPEZA FINAL" fields={['ENTRADA / SAÍDA']} />
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                  {expandedCaseEvents.length} eventos
+                </span>
               </div>
 
-              <div className="mt-6 bg-slate-50 rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div>
-                    <p className="text-sm font-black text-slate-900">Linha do tempo da execução</p>
-                    <p className="text-xs text-slate-500">Estado por etapa para a sala expandida.</p>
-                  </div>
-                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">
-                    {expandedCaseEvents.length} eventos
-                  </span>
-                </div>
+              <div className="space-y-3">
+                {timelineStages.map((stage, index) => {
+                  const stageEvents = getStageEvents(expandedCase?.id, stage.key);
+                  const status = getStageStatus(stage, stageEvents);
+                  const classes = statusClasses(status);
+                  const startAction = stage.kind === 'start_end' ? 'start' : 'in';
+                  const endAction = stage.kind === 'start_end' ? 'end' : 'out';
 
-                <div className="space-y-3">
-                  {timelineStages.map((stage, index) => {
-                    const stageEvents = getStageEvents(expandedCase.id, stage.key);
-                    const status = getStageStatus(stage, stageEvents);
-                    const classes = statusClasses(status);
-                    const startAction = stage.kind === 'start_end' ? 'start' : 'in';
-                    const endAction = stage.kind === 'start_end' ? 'end' : 'out';
+                  // Only show stages that have at least one event
+                  if (stageEvents.length === 0) return null;
 
-                    return (
-                      <div key={stage.key} className={`relative rounded-xl border p-4 ${classes.border}`}>
-                        {index < timelineStages.length - 1 && <div className="absolute left-6 top-12 bottom-0 w-px bg-slate-200" />}
-
-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between relative z-10">
-                          <div className="flex items-start gap-3">
-                            <div className={`mt-1 h-4 w-4 rounded-full border-2 ${classes.dot}`} />
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-black text-slate-900">{stage.label}</p>
-                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${classes.badge}`}>
-                                  {status === 'done' ? 'Concluída' : status === 'active' ? 'Em andamento' : 'Pendente'}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-500 mt-1">
-                                Início: {formatEventTime(stageEvents.find((event) => event.action === startAction)?.happenedAt)}
-                                {stage.kind === 'start_end'
-                                  ? ` • Fim: ${formatEventTime(stageEvents.find((event) => event.action === endAction)?.happenedAt)}`
-                                  : ` • Saída: ${formatEventTime(stageEvents.find((event) => event.action === endAction)?.happenedAt)}`}
-                              </p>
+                  return (
+                    <div key={stage.key} className={`relative rounded-xl border p-4 ${classes.border}`}>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between relative z-10">
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-1 h-4 w-4 rounded-full border-2 ${classes.dot}`} />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-black text-slate-900 uppercase">{stage.label}</p>
+                              <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${classes.badge}`}>
+                                {status === 'done' ? 'CONCLUÍDA' : status === 'active' ? 'EM ANDAMENTO' : 'PENDENTE'}
+                              </span>
                             </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {stageEvents.map((event) => (
-                              <div key={event.id} className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs">
-                                <span className="font-bold text-slate-700">{event.action}</span>
-                                <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
-                              </div>
-                            ))}
-                            {stageEvents.length === 0 && (
-                              <div className="rounded-lg bg-white border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500">
-                                Nenhum registro nesta etapa.
-                              </div>
-                            )}
+                            <p className="text-xs text-slate-500 mt-1">
+                              {stage.kind === 'start_end' ? 'Início' : 'Entrada'}: {formatEventTime(stageEvents.find((event) => event.action === startAction)?.happenedAt)}
+                              {' • '}
+                              {stage.kind === 'start_end' ? 'Fim' : 'Saída'}: {formatEventTime(stageEvents.find((event) => event.action === endAction)?.happenedAt)}
+                            </p>
                           </div>
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {stageEvents.map((event) => (
+                            <div key={event.id} className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs">
+                              <span className="font-bold text-slate-700 uppercase">{event.action}</span>
+                              <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
+
+                {expandedCaseEvents.length === 0 && (
+                  <div className="text-center py-8 text-slate-500">
+                    Nenhum tempo registrado para este caso.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -555,10 +476,6 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
           <div className="text-sm text-slate-500">{currentTime.toLocaleDateString('pt-BR')} • {currentTime.toLocaleTimeString('pt-BR')}</div>
         </div>
-        <button className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all">
-          <Plus size={20} />
-          Novo Caso
-        </button>
       </div>
 
       <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
@@ -969,7 +886,8 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
 
       {/* Salas Grid */}
       <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Salas Cirúrgicas</h2>
+        <h2 className="text-xl font-bold text-slate-900 mb-1">Salas — Tempos Registrados</h2>
+        <p className="text-xs text-slate-500 mb-4">Clique em uma sala para ver os tempos e movimentos registrados.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {rooms.map((room) => {
             const caseData = cases.find(c => c.roomId === room.id);
