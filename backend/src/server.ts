@@ -298,7 +298,7 @@ function buildCaseMoment(caseItem: any) {
   if (caseItem.referenceDate && caseItem.plannedSurgeryTime && /^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
     const moment = new Date(caseItem.referenceDate);
     const [hours, minutes] = String(caseItem.plannedSurgeryTime).split(':').map(Number);
-    moment.setHours(hours, minutes, 0, 0);
+    moment.setUTCHours(hours, minutes, 0, 0);
     return moment;
   }
 
@@ -350,8 +350,9 @@ function normalizePlannedStart(plannedStart: unknown, referenceDate?: string | D
     const [hours, minutes] = text.split(':').map(Number);
     if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
 
+    // Use UTC to match the event timestamps (which are stored as UTC via toISOString)
     const planned = new Date(refDate);
-    planned.setHours(hours, minutes, 0, 0);
+    planned.setUTCHours(hours, minutes, 0, 0);
     return planned;
   }
 
@@ -405,17 +406,17 @@ function getDashboardCaseFilters(query: Record<string, string | undefined>) {
 
   if (period === 'day' && date) {
     rangeStart = new Date(date);
-    rangeStart.setHours(0, 0, 0, 0);
+    rangeStart.setUTCHours(0, 0, 0, 0);
     rangeEnd = new Date(date);
-    rangeEnd.setHours(23, 59, 59, 999);
+    rangeEnd.setUTCHours(23, 59, 59, 999);
   } else if (period === 'month' && date) {
-    rangeStart = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-    rangeEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+    rangeStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
+    rangeEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   } else if (period === 'range' && from && to) {
     rangeStart = new Date(from);
-    rangeStart.setHours(0, 0, 0, 0);
+    rangeStart.setUTCHours(0, 0, 0, 0);
     rangeEnd = new Date(to);
-    rangeEnd.setHours(23, 59, 59, 999);
+    rangeEnd.setUTCHours(23, 59, 59, 999);
   }
 
   return { roomId, rangeStart, rangeEnd };
