@@ -324,7 +324,7 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
   }, [expandedRoomId, cases]);
 
   const formatMs = (ms: number | null) => {
-    if (ms === null || ms === undefined || Number.isNaN(ms)) return '—';
+    if (ms === null || ms === undefined || Number.isNaN(ms)) return '00:00:00';
     const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
     const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
     const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');

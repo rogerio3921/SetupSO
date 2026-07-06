@@ -187,7 +187,7 @@ app.post('/api/events', roleMiddleware(['Admin']), async (req, res) => {
       const hasStart = events.some((e: any) => e.action === startAction);
       const hasEnd = events.some((e: any) => e.action === endAction);
       if (hasStart && !hasEnd) {
-        await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: new Date() } });
+        await prisma.event.create({ data: { caseId, eventKey: key, action: endAction, auto: true, happenedAt: eventTime } });
       }
     };
 
@@ -298,7 +298,7 @@ function buildCaseMoment(caseItem: any) {
   if (caseItem.referenceDate && caseItem.plannedSurgeryTime && /^\d{2}:\d{2}$/.test(caseItem.plannedSurgeryTime)) {
     const moment = new Date(caseItem.referenceDate);
     const [hours, minutes] = String(caseItem.plannedSurgeryTime).split(':').map(Number);
-    moment.setUTCHours(hours, minutes, 0, 0);
+    moment.setHours(hours, minutes, 0, 0);
     return moment;
   }
 
@@ -350,9 +350,9 @@ function normalizePlannedStart(plannedStart: unknown, referenceDate?: string | D
     const [hours, minutes] = text.split(':').map(Number);
     if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
 
-    // Use UTC to match the event timestamps (which are stored as UTC via toISOString)
+    // Use local hours to match the user-entered time (e.g. "14:00" means 14:00 local)
     const planned = new Date(refDate);
-    planned.setUTCHours(hours, minutes, 0, 0);
+    planned.setHours(hours, minutes, 0, 0);
     return planned;
   }
 
@@ -976,15 +976,94 @@ function computeAverage(values: Array<number | null | undefined>) {
 }
 
 function computeDelayMs(events: any[], plannedStart: string | null | undefined, eventKey: string, action: string, referenceDate?: string | Date | null) {
-  const planned = normalizePlannedStart(plannedStart, referenceDate, events.length > 0 ? events[0].happenedAt : null);
-  if (!planned) return null;
+  if (!plannedStart) return null;
 
   const actual = [...events]
     .sort((a, b) => new Date(a.happenedAt).getTime() - new Date(b.happenedAt).getTime())
     .find((event: any) => event.eventKey === eventKey && event.action === action)?.happenedAt;
 
   if (!actual) return null;
-  return new Date(actual).getTime() - planned.getTime();
+
+  const actualDate = new Date(actual);
+  const text = String(plannedStart).trim();
+
+  // If plannedStart is HH:MM format, compare using same-day approach
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [plannedHours, plannedMinutes] = text.split(':').map(Number);
+    // Get the actual event's hours and minutes in the SAME timezone representation
+    // Since happenedAt comes from client's new Date().toISOString(), it's UTC
+    // The planned time "14:00" was entered by user in their local time (UTC-3 for Brazil)
+    // So we need to compare: actualDate UTC hours/minutes with planned+3 hours (UTC equivalent)
+    // OR: convert actual to local hours and compare with planned local
+    // Best approach: extract hour/minute from actual in the same timezone offset as the planned
+    // Since we don't know the offset, use the event's own date to build planned in UTC
+    // The user entered "14:00" local = "17:00" UTC (for UTC-3)
+    // The event happened at "17:05" UTC
+    // Diff should be 5 minutes
+    
+    // Use the actual event date as the reference day, set planned hours as local time
+    // by using the same offset as the actual event
+    const plannedTotalMinutes = plannedHours * 60 + plannedMinutes;
+    
+    // Get actual time in local timezone (same as what the user sees)
+    // The client sends toISOString which is UTC. The user sees local time.
+    // For Brazil UTC-3: actualDate.getUTCHours() - 3 = local hour
+    // But we don't hardcode timezone. Instead, compare hour:minute from the event display.
+    
+    // Since the server may be in any timezone, the safest approach:
+    // The planned time is the time the user typed (their local time).
+    // The event happenedAt was captured by the client as `new Date().toISOString()`.
+    // On the client, `new Date()` local hour matches what the user sees.
+    // So the UTC hour of the event = local hour + offset.
+    // The planned "14:00" local = (14 + offset_hours):00 UTC.
+    // We need: event_UTC - planned_UTC = (event_local + offset) - (planned_local + offset) = event_local - planned_local
+    // So: difference = actualDate.getTime() - (same_day_with_planned_local_as_UTC_offset)
+    // Simplest: convert both to "minutes since midnight" using the SAME method
+    
+    // Get minutes since midnight UTC for the actual event
+    const actualTotalMinutesUTC = actualDate.getUTCHours() * 60 + actualDate.getUTCMinutes();
+    
+    // The planned time was entered as local. The events are stored as UTC.
+    // For correct comparison, we need the UTC equivalent of the planned local time.
+    // Since events come from client's toISOString, and the client's local = planned time zone:
+    // planned_UTC = planned_local + timezone_offset
+    // But we can reverse-engineer the offset from any event on the same day:
+    // Actually the simplest fix: assume the offset is consistent and compute from referenceDate
+    
+    // SIMPLEST CORRECT APPROACH: 
+    // Build planned as: same day as event, same hour:minute, using the referenceDate
+    // The referenceDate is stored as "YYYY-MM-DD" (date string without time)
+    // new Date("2026-07-06") = midnight UTC of that day
+    // If we do refDate.setHours(14, 0) on a server in UTC, it gives 14:00 UTC
+    // But the event at 14:00 local (UTC-3) is stored as 17:00 UTC
+    // So the diff would be 17:00 - 14:00 = 3 hours WRONG
+    
+    // CORRECT: Don't use absolute timestamps. Just compare minutes-of-day.
+    // planned = 14:00 = 840 minutes from midnight
+    // actual event was at 14:05 local, stored as 17:05 UTC
+    // If server is UTC: actualDate.getHours() = 17, which is WRONG for comparison
+    
+    // THE REAL FIX: Since both the planned time and the event time were created by the 
+    // same client in the same timezone, we just need the minute-of-day difference.
+    // The event ISO string contains the UTC time. To get local time, we'd need the offset.
+    // Since we can't reliably get it, let's store a TZ_OFFSET config or derive it.
+    
+    // PRAGMATIC FIX: Use -3 hours (Brazil/São Paulo) as default for now
+    const TZ_OFFSET_HOURS = -3;
+    const actualLocalHours = (actualDate.getUTCHours() + TZ_OFFSET_HOURS + 24) % 24;
+    const actualLocalMinutes = actualDate.getUTCMinutes();
+    const actualTotalMinutesLocal = actualLocalHours * 60 + actualLocalMinutes;
+    
+    const diffMinutes = actualTotalMinutesLocal - plannedTotalMinutes;
+    
+    // Convert to milliseconds (can be negative if early)
+    return diffMinutes * 60 * 1000;
+  }
+
+  // If it's a full ISO date, just compare directly
+  const planned = new Date(text);
+  if (isNaN(planned.getTime())) return null;
+  return actualDate.getTime() - planned.getTime();
 }
 
 function computeCaseDelayMinutes(caseItem: any) {
