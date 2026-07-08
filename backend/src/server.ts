@@ -1067,19 +1067,47 @@ function computeDelayMs(events: any[], plannedStart: string | null | undefined, 
 }
 
 function computeCaseDelayMinutes(caseItem: any) {
-  const planned = getPlannedStartAt(caseItem);
-  if (!planned) return { delayMs: 0, plannedAt: null as Date | null, actualAt: null as string | null };
+  const plannedTime = caseItem.plannedSurgeryTime;
+  if (!plannedTime) return { delayMs: 0, plannedAt: null as Date | null, actualAt: null as string | null };
 
-  const actualAt = getEventTimestamp(caseItem.events, 'surgery', 'start')
-    || getEventTimestamp(caseItem.events, 'surgery', 'end')
-    || getEventTimestamp(caseItem.events, 'patient_in_or', 'in');
+  const actualAt = getEventTimestamp(caseItem.events, 'patient_in_or', 'in')
+    || getEventTimestamp(caseItem.events, 'surgery', 'start');
 
   if (!actualAt) {
-    return { delayMs: 0, plannedAt: planned, actualAt: null };
+    return { delayMs: 0, plannedAt: null, actualAt: null };
   }
 
-  const delayMs = Math.max(0, new Date(actualAt).getTime() - planned.getTime());
-  return { delayMs, plannedAt: planned, actualAt };
+  // Use the same UTC-3 approach as computeDelayMs
+  const text = String(plannedTime).trim();
+  let delayMs = 0;
+
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [plannedHours, plannedMinutes] = text.split(':').map(Number);
+    const plannedTotalMinutes = plannedHours * 60 + plannedMinutes;
+
+    const actualDate = new Date(actualAt);
+    const TZ_OFFSET_HOURS = -3;
+    const actualLocalHours = (actualDate.getUTCHours() + TZ_OFFSET_HOURS + 24) % 24;
+    const actualLocalMinutes = actualDate.getUTCMinutes();
+    const actualTotalMinutesLocal = actualLocalHours * 60 + actualLocalMinutes;
+
+    const diffMinutes = actualTotalMinutesLocal - plannedTotalMinutes;
+    delayMs = Math.max(0, diffMinutes * 60 * 1000);
+  } else {
+    const planned = new Date(text);
+    if (!isNaN(planned.getTime())) {
+      delayMs = Math.max(0, new Date(actualAt).getTime() - planned.getTime());
+    }
+  }
+
+  // Build a "planned" date for display purposes
+  const refDate = new Date(caseItem.referenceDate || caseItem.createdAt);
+  if (/^\d{1,2}:\d{2}$/.test(text)) {
+    const [h, m] = text.split(':').map(Number);
+    refDate.setHours(h, m, 0, 0);
+  }
+
+  return { delayMs, plannedAt: refDate, actualAt };
 }
 
 app.get('/api/dashboard/summary', authMiddleware, async (req, res) => {
