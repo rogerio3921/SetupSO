@@ -270,6 +270,16 @@ export default function SetupSala() {
   };
 
   const handleEditRoom = async (room: RoomSetup) => {
+    // Check if patient already entered SO - if so, block editing
+    if (room.caseId) {
+      const roomEvents = caseEvents.filter((e) => e.caseId === room.caseId);
+      const hasPatientInSO = roomEvents.some((e) => e.eventKey === 'patient_in_or' && e.action === 'in');
+      if (hasPatientInSO) {
+        alert('Não é possível editar a sala. O paciente já está em SO (entrada registrada).');
+        return;
+      }
+    }
+
     setEditingRoom(room);
     setEditValue(room.name || '');
     // ensure patients list is loaded
@@ -599,17 +609,44 @@ export default function SetupSala() {
   };
 
   const getStatusColor = (room: RoomSetup) => {
-    const { isDelayed } = calculateDelay(room);
-    if (isDelayed) return 'bg-red-100 border-red-400';
-    if (room.times?.surgeryStart) return 'bg-green-100 border-green-400';
-    return 'bg-blue-100 border-blue-400';
+    const status = getStatusText(room);
+    switch (status) {
+      case 'EM CIRURGIA': return 'bg-red-100 border-red-400';
+      case 'PACIENTE EM SO': return 'bg-amber-100 border-amber-400';
+      case 'EM TRANSPORTE': return 'bg-blue-100 border-blue-400';
+      case 'EM LIMPEZA': return 'bg-yellow-100 border-yellow-400';
+      case 'PÓS-CIRURGIA': return 'bg-purple-100 border-purple-400';
+      case 'SALA PRONTA': return 'bg-green-100 border-green-400';
+      case 'ESCALADO': return 'bg-cyan-100 border-cyan-400';
+      case 'LIVRE': return 'bg-green-50 border-green-300';
+      default: return 'bg-slate-100 border-slate-300';
+    }
   };
 
   const getStatusText = (room: RoomSetup) => {
-    const { isDelayed, minutes } = calculateDelay(room);
-    if (isDelayed) return `EM ATRASO (${minutes}min)`;
-    if (room.times?.surgeryStart) return 'EM CIRURGIA';
-    if (room.times?.transportEnd) return 'PACIENTE NA SALA';
+    // Use actual case events to determine status
+    if (!room.caseId) {
+      return room.patientName && room.patientName !== 'Não informado' ? 'ESCALADO' : 'LIVRE';
+    }
+
+    const roomEvents = caseEvents.filter((e) => e.caseId === room.caseId);
+
+    const hasRoomSetupEnd = roomEvents.some((e) => e.eventKey === 'room_setup' && e.action === 'end');
+    const hasCleaningIn = roomEvents.some((e) => e.eventKey === 'cleaning' && e.action === 'in');
+    const hasCleaningOut = roomEvents.some((e) => e.eventKey === 'cleaning' && e.action === 'out');
+    const hasSurgeryStart = roomEvents.some((e) => e.eventKey === 'surgery' && e.action === 'start');
+    const hasSurgeryEnd = roomEvents.some((e) => e.eventKey === 'surgery' && e.action === 'end');
+    const hasPatientIn = roomEvents.some((e) => e.eventKey === 'patient_in_or' && e.action === 'in');
+    const hasPatientOut = roomEvents.some((e) => e.eventKey === 'patient_in_or' && e.action === 'out');
+    const hasTransportStart = roomEvents.some((e) => e.eventKey === 'transport_patient' && e.action === 'start');
+
+    if (hasRoomSetupEnd) return 'SALA PRONTA';
+    if (hasCleaningIn && !hasCleaningOut) return 'EM LIMPEZA';
+    if (hasSurgeryEnd && hasPatientOut) return 'PÓS-CIRURGIA';
+    if (hasSurgeryStart && !hasSurgeryEnd) return 'EM CIRURGIA';
+    if (hasPatientIn && !hasPatientOut) return 'PACIENTE EM SO';
+    if (hasTransportStart && !hasPatientIn) return 'EM TRANSPORTE';
+    if (room.patientName && room.patientName !== 'Não informado') return 'ESCALADO';
     return 'AGUARDANDO';
   };
 
