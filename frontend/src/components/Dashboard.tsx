@@ -417,9 +417,16 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
                   const classes = statusClasses(status);
                   const startAction = stage.kind === 'start_end' ? 'start' : 'in';
                   const endAction = stage.kind === 'start_end' ? 'end' : 'out';
+                  const startEvent = stageEvents.find((e) => e.action === startAction);
+                  const endEvent = stageEvents.find((e) => e.action === endAction);
 
-                  // Only show stages that have at least one event
-                  if (stageEvents.length === 0) return null;
+                  // Calculate duration
+                  let duration = '';
+                  if (startEvent && endEvent) {
+                    const ms = new Date(endEvent.happenedAt).getTime() - new Date(startEvent.happenedAt).getTime();
+                    const secs = Math.floor(ms / 1000);
+                    duration = `${String(Math.floor(secs / 3600)).padStart(2, '0')}:${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+                  }
 
                   return (
                     <div key={stage.key} className={`relative rounded-xl border p-4 ${classes.border}`}>
@@ -432,22 +439,33 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
                               <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${classes.badge}`}>
                                 {status === 'done' ? 'CONCLUÍDA' : status === 'active' ? 'EM ANDAMENTO' : 'PENDENTE'}
                               </span>
+                              {duration && (
+                                <span className="text-[11px] font-black px-2 py-1 rounded-full bg-slate-800 text-white">
+                                  {duration}
+                                </span>
+                              )}
                             </div>
                             <p className="text-xs text-slate-500 mt-1">
-                              {stage.kind === 'start_end' ? 'Início' : 'Entrada'}: {formatEventTime(stageEvents.find((event) => event.action === startAction)?.happenedAt)}
+                              {stage.kind === 'start_end' ? 'Início' : 'Entrada'}: {formatEventTime(startEvent?.happenedAt)}
                               {' • '}
-                              {stage.kind === 'start_end' ? 'Fim' : 'Saída'}: {formatEventTime(stageEvents.find((event) => event.action === endAction)?.happenedAt)}
+                              {stage.kind === 'start_end' ? 'Fim' : 'Saída'}: {formatEventTime(endEvent?.happenedAt)}
                             </p>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {stageEvents.map((event) => (
-                            <div key={event.id} className="flex items-center justify-between rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs">
-                              <span className="font-bold text-slate-700 uppercase">{event.action}</span>
-                              <span className="text-slate-500">{formatEventTime(event.happenedAt)}</span>
+                        <div className="flex gap-2">
+                          {startEvent && (
+                            <div className="flex items-center rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs">
+                              <span className="font-bold text-slate-700 uppercase mr-2">{startAction}</span>
+                              <span className="text-slate-500">{formatEventTime(startEvent.happenedAt)}</span>
                             </div>
-                          ))}
+                          )}
+                          {endEvent && (
+                            <div className="flex items-center rounded-lg bg-white border border-slate-200 px-3 py-2 text-xs">
+                              <span className="font-bold text-slate-700 uppercase mr-2">{endAction}</span>
+                              <span className="text-slate-500">{formatEventTime(endEvent.happenedAt)}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
