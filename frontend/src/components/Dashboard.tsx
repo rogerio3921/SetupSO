@@ -795,7 +795,7 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           {costData.stageCosts && costData.stageCosts.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-slate-900 mb-1">Ranking de Custo por Etapa</h2>
-              <p className="text-xs text-slate-500 mb-4">Etapas ordenadas pelo custo total acumulado</p>
+              <p className="text-xs text-slate-500 mb-4">Acumulado no mês — etapas ordenadas pelo custo total</p>
               <div className="space-y-2">
                 {costData.stageCosts.slice(0, 10).map((stage: any, index: number) => {
                   const maxCost = costData.stageCosts[0]?.totalCost || 1;
@@ -841,7 +841,7 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
           {costData.caseRanking && costData.caseRanking.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-slate-900 mb-1">Ranking de Custo por Caso</h2>
-              <p className="text-xs text-slate-500 mb-4">Casos mais caros com horário agendado e início real da cirurgia</p>
+              <p className="text-xs text-slate-500 mb-4">Acumulado no mês — casos mais caros (tempo total × custo/min)</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -902,54 +902,6 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
         </>
       )}
 
-      {/* Salas Grid */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-1">Salas — Tempos Registrados</h2>
-        <p className="text-xs text-slate-500 mb-4">Clique em uma sala para ver os tempos e movimentos registrados.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {rooms.map((room) => {
-            const caseData = cases.find(c => c.roomId === room.id);
-            const statusColor = caseData?.status === 'LIBERADO' ? 'bg-green-100 text-green-800' :
-                              caseData?.status === 'EM PREPARO' ? 'bg-yellow-100 text-yellow-800' :
-                              caseData?.status === 'EM ATRASO' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800';
-
-            return (
-              <div 
-                key={room.id} 
-                onClick={() => handleExpandRoom(room.id)}
-                className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg p-4 border-2 border-slate-200 hover:border-slate-400 hover:shadow-lg transition-all cursor-pointer group"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <p className="text-sm font-bold text-slate-600">{room.name}</p>
-                    <p className="text-lg font-black text-slate-900">{room.code}</p>
-                  </div>
-                  {caseData && (
-                    <span className={`text-xs font-bold px-2 py-1 rounded ${statusColor}`}>
-                      {caseData.status}
-                    </span>
-                  )}
-                </div>
-                
-                {caseData ? (
-                  <>
-                    <p className="text-sm text-slate-700 truncate font-semibold">{caseData.patientFullName || 'Paciente'}</p>
-                    <p className="text-xs text-slate-500 mt-1">{caseData.procedureName || 'Procedimento'}</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-500 italic">Sala disponível</p>
-                )}
-                
-                <div className="mt-3 flex items-center justify-between">
-                  <p className="text-xs text-slate-500">Clique para expandir</p>
-                  <ChevronRight className="text-slate-400 group-hover:text-slate-600 transition-colors" size={16} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

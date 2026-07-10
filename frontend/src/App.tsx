@@ -12,6 +12,7 @@ import Scheduling from './components/Scheduling';
 import FluxoSala from './components/FluxoSala';
 import ConfigCC from './components/ConfigCC';
 import CustomMetrics from './components/CustomMetrics';
+import SalasTempos from './components/SalasTempos';
 import './App.css';
 
 interface User {
@@ -21,7 +22,7 @@ interface User {
   role: string;
 }
 
-type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes' | 'schedules' | 'fluxo-sala' | 'config-cc' | 'custom-metrics';
+type PageId = 'dashboard' | 'salas' | 'setup-sala' | 'cadastros' | 'usuarios' | 'relatorios' | 'pacientes' | 'schedules' | 'fluxo-sala' | 'config-cc' | 'custom-metrics' | 'salas-tempos';
 
 function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -99,6 +100,8 @@ function App() {
         return <ConfigCC />;
       case 'custom-metrics':
         return <CustomMetrics />;
+      case 'salas-tempos':
+        return <SalasTempos />;
       case 'relatorios':
         return <Reports />;
       default:

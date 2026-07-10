@@ -39,6 +39,7 @@ export default function Layout({ user, onLogout, children, currentPage, onPageCh
     { id: 'cadastros', label: 'Cadastros', icon: ClipboardList, role: ['Admin', 'Master'] },
     { id: 'usuarios', label: 'Usuários', icon: Users, role: ['Admin', 'Master'] },
     { id: 'relatorios', label: 'Relatórios', icon: BarChart3, role: ['Admin', 'Master'] },
+    { id: 'salas-tempos', label: 'Salas - Tempos', icon: Clock, role: ['Admin', 'Master'] },
   ];
 
   // Filter menu items by user role
