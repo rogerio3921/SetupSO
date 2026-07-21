@@ -33,6 +33,7 @@ interface Patient {
   surgeonName?: string | null;
   birthDate?: string | null;
   allergies?: string | null;
+  estimatedMinutes?: number | null;
   status: string;
   roomId?: string | null;
 }
@@ -322,7 +323,10 @@ export default function SalasCirurgicas() {
                   {activeCase?.plannedSurgeryTime && (
                     <div className="flex items-center gap-1 text-xs">
                       <Calendar size={12} className="text-slate-500" />
-                      <span className="text-slate-700">PREVISTO: <strong>{activeCase.plannedSurgeryTime}</strong></span>
+                      <span className="text-slate-700">
+                        PREVISTO: <strong>{activeCase.plannedSurgeryTime}</strong>
+                        {scheduledPatient?.estimatedMinutes ? ` • TEMPO: ${scheduledPatient.estimatedMinutes} min` : ''}
+                      </span>
                     </div>
                   )}
 
