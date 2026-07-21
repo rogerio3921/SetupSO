@@ -428,6 +428,23 @@ export default function CustomMetrics() {
                     </select>
                   </div>
                 </div>
+
+                {/* Shortcut: same stage start to end */}
+                {form.startEventKey && form.startAction && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const stage = stages.find((s) => s.key === form.startEventKey);
+                      if (stage) {
+                        const endAction = stage.kind === 'start_end' ? 'end' : 'out';
+                        setForm({ ...form, endEventKey: form.startEventKey, endAction });
+                      }
+                    }}
+                    className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800 underline"
+                  >
+                    → Usar mesma etapa (calcular Início e Fim)
+                  </button>
+                )}
               </div>
 
               {/* End point */}

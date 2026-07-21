@@ -396,7 +396,10 @@ export default function Pacientes() {
               <input className="input" type="date" value={scheduleForm.date} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} />
               <input className="input" type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} />
               <input className="input" placeholder="Procedimento" value={scheduleForm.procedureName} onChange={(e) => setScheduleForm({ ...scheduleForm, procedureName: e.target.value })} list="procedure-suggestions-agenda" />
-              <input className="input" type="number" placeholder="Tempo previsto de cirurgia (min)" value={scheduleForm.estimatedMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedMinutes: e.target.value })} />
+              <div className="relative">
+                <input className="input" type="number" placeholder="Ex: 120" value={scheduleForm.estimatedMinutes} onChange={(e) => setScheduleForm({ ...scheduleForm, estimatedMinutes: e.target.value })} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">min (tempo previsto)</span>
+              </div>
 
               <div className="md:col-span-2 flex flex-wrap gap-2 pt-2">
                 <button type="submit" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg">
