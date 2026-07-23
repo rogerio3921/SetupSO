@@ -253,7 +253,7 @@ export default function Pacientes() {
 
   const viewButtons = [
     { id: 'cadastro' as ViewId, label: 'Adicionar Paciente' },
-    { id: 'agenda' as ViewId, label: 'Manage Pacientes / Agenda' },
+    { id: 'agenda' as ViewId, label: 'Agenda' },
     { id: 'integracao' as ViewId, label: 'API de Pacientes' }
   ];
 
@@ -357,25 +357,6 @@ export default function Pacientes() {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <button
-                type="submit"
-                form="patient-form"
-                className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg"
-              >
-                <Plus size={16} />
-                Salvar paciente
-              </button>
-              <button
-                type="submit"
-                form="schedule-form"
-                className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-lg"
-              >
-                <CalendarDays size={16} />
-                Salvar agenda manual
-              </button>
-            </div>
-
             <form id="schedule-form" onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <select className="input" value={scheduleForm.patientId} onChange={(e) => setScheduleForm({ ...scheduleForm, patientId: e.target.value })} required>
                 <option value="">Selecionar paciente</option>
@@ -404,7 +385,7 @@ export default function Pacientes() {
               <div className="md:col-span-2 flex flex-wrap gap-2 pt-2">
                 <button type="submit" className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg">
                   <CalendarDays size={16} />
-                  Criar agenda manual
+                  Agendar
                 </button>
                 <button type="button" onClick={() => setScheduleForm((current) => ({ ...current, patientId: '' }))} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-lg">
                   Limpar seleção
@@ -438,10 +419,10 @@ export default function Pacientes() {
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black text-slate-900">Fila de pacientes</h2>
-              <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full">{patients.length} pacientes</span>
+              <span className="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded-full">{patients.filter((p) => p.status !== 'completed').length} na fila</span>
             </div>
             <div className="space-y-3 max-h-[70vh] overflow-auto pr-1">
-              {patients.map((patient) => (
+              {patients.filter((p) => p.status !== 'completed').map((patient) => (
                 <div key={patient.id} className="rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>

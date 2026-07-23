@@ -216,7 +216,7 @@ export default function SalasCirurgicas() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-black text-slate-900">Mapa Cirúrgico</h1>
-            <p className="text-sm text-slate-600 mt-1">Visão geral das salas, pacientes escalados e agendamentos.</p>
+            <p className="text-sm text-slate-600 mt-1">Visão geral das salas e pacientes escalados. Para agendar, use a tela Pacientes.</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <input
@@ -225,13 +225,6 @@ export default function SalasCirurgicas() {
               placeholder="Buscar sala..."
               className="px-3 py-2 border border-slate-300 rounded-lg text-sm w-40"
             />
-            <button
-              onClick={() => { setScheduleRoomId(''); setShowScheduleModal(true); }}
-              className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg transition-all"
-            >
-              <Plus size={16} />
-              Agendar
-            </button>
             <button
               onClick={() => setShowAddRoomModal(true)}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-all"
@@ -330,16 +323,21 @@ export default function SalasCirurgicas() {
                     </div>
                   )}
 
-                  {/* Move button */}
-                  {scheduledPatient && (
-                    <button
-                      onClick={() => openMoveModal(scheduledPatient.id)}
-                      className="w-full mt-2 inline-flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all"
-                    >
-                      <ArrowRightLeft size={12} />
-                      Mover para outra sala
-                    </button>
-                  )}
+                  {/* Move button - only if patient NOT yet in SO */}
+                  {scheduledPatient && (() => {
+                    const events = activeCase?.events || [];
+                    const hasPatientInSO = events.some((e: any) => e.eventKey === 'patient_in_or' && e.action === 'in');
+                    if (hasPatientInSO) return null;
+                    return (
+                      <button
+                        onClick={() => openMoveModal(scheduledPatient.id)}
+                        className="w-full mt-2 inline-flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all"
+                      >
+                        <ArrowRightLeft size={12} />
+                        Mover para outra sala
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -363,16 +361,6 @@ export default function SalasCirurgicas() {
                 </div>
               )}
 
-              {/* Add patient button for free rooms */}
-              {status === 'livre' && !scheduledPatient && (
-                <button
-                  onClick={() => openScheduleForRoom(room.id)}
-                  className="w-full mt-2 inline-flex items-center justify-center gap-1 text-xs font-bold px-3 py-2 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-all border border-green-200"
-                >
-                  <Plus size={12} />
-                  Escalar paciente
-                </button>
-              )}
             </div>
           );
         })}
