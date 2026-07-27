@@ -1,7 +1,7 @@
 version: '3.9'
 
 services:
-  # MySQL Database - Port 3308 (external)
+  # MySQL Database
   db:
     image: mysql:8.0
     container_name: setupso-mysql
@@ -22,7 +22,7 @@ services:
       timeout: 20s
       retries: 10
 
-  # Backend API - Port 4008 (external)
+  # Backend API
   backend:
     build:
       context: ./backend
@@ -34,7 +34,7 @@ services:
       DATABASE_URL: mysql://setupso:setupso123@db:3306/setupso
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
       JWT_EXPIRY: 7d
-      CORS_ORIGIN: http://181.232.129.84:3008
+      CORS_ORIGIN: https://setupso.app,https://www.setupso.app,http://setupso.app
     ports:
       - "4008:4000"
     depends_on:
@@ -46,16 +46,16 @@ services:
       - setupso-network
     command: sh -c "npm run db:sync && npm run dev"
 
-  # Frontend React - Port 3008 (external)
+  # Frontend React
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_URL: http://181.232.129.84:4008/api
+        REACT_APP_API_URL: https://api.setupso.app/api
     container_name: setupso-frontend
     environment:
-      REACT_APP_API_URL: http://181.232.129.84:4008/api
+      REACT_APP_API_URL: https://api.setupso.app/api
     ports:
       - "3008:3000"
     depends_on:
