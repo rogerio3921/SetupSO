@@ -592,7 +592,7 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
 
             {filterMode === 'patient' && (
               <div className="flex items-end gap-2">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-500 mb-1">Nome do paciente</label>
                   <input
                     type="text"
@@ -601,7 +601,13 @@ export default function Dashboard({ onOpenSetupSala }: DashboardProps) {
                     value={filterPatientName}
                     onChange={(e) => setFilterPatientName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') refreshDashboard(); }}
+                    list="patient-suggestions"
                   />
+                  <datalist id="patient-suggestions">
+                    {Array.from(new Set(cases.map((c: any) => c.patientFullName).filter(Boolean))).map((name: any) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
                 <button
                   type="button"
