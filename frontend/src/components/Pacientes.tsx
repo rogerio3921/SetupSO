@@ -360,7 +360,7 @@ export default function Pacientes() {
             <form id="schedule-form" onSubmit={handleScheduleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <select className="input" value={scheduleForm.patientId} onChange={(e) => setScheduleForm({ ...scheduleForm, patientId: e.target.value })} required>
                 <option value="">Selecionar paciente</option>
-                {patients.map((patient) => (
+                {patients.filter((p) => p.status !== 'completed').map((patient) => (
                   <option key={patient.id} value={patient.id}>
                     {patient.fullName} {patient.procedureName ? `- ${patient.procedureName}` : ''}
                   </option>

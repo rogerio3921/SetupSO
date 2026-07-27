@@ -759,6 +759,15 @@ app.post('/api/schedules', authMiddleware, async (req, res) => {
 
     // Validate: patient cannot be in another active room
     const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+
+    // Block completed patients from being scheduled again
+    if (patient && patient.status === 'completed') {
+      return res.status(400).json({
+        error: 'PATIENT_COMPLETED',
+        message: `Paciente "${patient.fullName}" já foi concluído. Não é possível agendá-lo novamente.`
+      });
+    }
+
     if (patient && patient.roomId && patient.roomId !== roomId && patient.status === 'scheduled') {
       const existingRoom = await prisma.room.findUnique({ where: { id: patient.roomId } });
       return res.status(400).json({
