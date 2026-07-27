@@ -93,6 +93,7 @@ export default function Pacientes() {
     token: ''
   });
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === scheduleForm.patientId),
@@ -431,9 +432,14 @@ export default function Pacientes() {
                       <p className="text-xs text-slate-500 mt-1">{patient.noticeNumber || patient.attendanceNumber || 'Sem aviso/atendimento'}</p>
                       <p className="text-xs text-slate-500 mt-1">Alergia: {patient.allergies || '—'}</p>
                     </div>
-                    <button onClick={() => setScheduleForm((current) => ({ ...current, patientId: patient.id, procedureName: patient.procedureName || current.procedureName, estimatedMinutes: patient.estimatedMinutes ? String(patient.estimatedMinutes) : current.estimatedMinutes }))} className="text-xs font-bold px-3 py-2 rounded-lg bg-blue-50 text-blue-700">
-                      Selecionar
-                    </button>
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => setScheduleForm((current) => ({ ...current, patientId: patient.id, procedureName: patient.procedureName || current.procedureName, estimatedMinutes: patient.estimatedMinutes ? String(patient.estimatedMinutes) : current.estimatedMinutes }))} className="text-xs font-bold px-3 py-2 rounded-lg bg-blue-50 text-blue-700">
+                        Selecionar
+                      </button>
+                      <button onClick={() => setEditingPatient(patient)} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">
+                        Editar
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-600">{patient.status}</span>
@@ -489,6 +495,69 @@ export default function Pacientes() {
                 </div>
               ))}
               {schedules.length === 0 && <p className="text-slate-500 text-sm">Nenhuma agenda criada ainda.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Patient Modal */}
+      {editingPatient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-xl font-black text-slate-900 mb-4">Editar Paciente</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Nome (não editável)</label>
+                <input className="input bg-slate-100 text-slate-500 cursor-not-allowed" value={editingPatient.fullName} disabled />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Procedimento</label>
+                <input className="input" value={editingPatient.procedureName || ''} onChange={(e) => setEditingPatient({ ...editingPatient, procedureName: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Cirurgião</label>
+                <input className="input" value={editingPatient.surgeonName || ''} onChange={(e) => setEditingPatient({ ...editingPatient, surgeonName: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">Alergias</label>
+                <input className="input" value={editingPatient.allergies || ''} onChange={(e) => setEditingPatient({ ...editingPatient, allergies: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Nº Aviso</label>
+                  <input className="input" value={editingPatient.noticeNumber || ''} onChange={(e) => setEditingPatient({ ...editingPatient, noticeNumber: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">Tempo (min)</label>
+                  <input className="input" type="number" value={editingPatient.estimatedMinutes || ''} onChange={(e) => setEditingPatient({ ...editingPatient, estimatedMinutes: e.target.value ? Number(e.target.value) : null })} />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    await axios.patch(`${API_URL}/patients/${editingPatient.id}`, {
+                      procedureName: editingPatient.procedureName,
+                      surgeonName: editingPatient.surgeonName,
+                      allergies: editingPatient.allergies,
+                      noticeNumber: editingPatient.noticeNumber,
+                      estimatedMinutes: editingPatient.estimatedMinutes
+                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    setEditingPatient(null);
+                    await fetchAll();
+                  } catch (error) {
+                    alert('Erro ao salvar alterações.');
+                  }
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+              >
+                Salvar
+              </button>
+              <button onClick={() => setEditingPatient(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg">
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
