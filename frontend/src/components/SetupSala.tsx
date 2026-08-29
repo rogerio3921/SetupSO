@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, AlertCircle, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import axios from 'axios';
+import VoiceCommandPanel from './VoiceCommandPanel';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
@@ -591,6 +592,24 @@ export default function SetupSala() {
     }
 
     await recordEvent(room.caseId, stage.key, action);
+  };
+
+  // --- Voice commands: reuse the exact same validation + handler as the buttons
+  const voiceCheckAction = (caseId: string, stageKey: string, action: TimelineActionKey) => {
+    const stage = timelineStages.find((s) => s.key === stageKey);
+    if (!stage) return { allowed: false, reason: 'etapa não encontrada' };
+    const events = getStageEvents(caseId, stageKey);
+    const disabled = getStageButtonDisabled(stage, events, action);
+    if (!disabled) return { allowed: true };
+    const startAction = stage.kind === 'start_end' ? 'start' : 'in';
+    if (events.some((e) => e.action === action)) return { allowed: false, reason: 'já registrado' };
+    return { allowed: false, reason: action === startAction ? 'indisponível agora' : 'registre o início primeiro' };
+  };
+
+  const voiceRunAction = async (roomId: string, stageKey: string, action: TimelineActionKey) => {
+    const room = rooms.find((r) => r.id === roomId);
+    const stage = timelineStages.find((s) => s.key === stageKey);
+    if (room && stage) await handleStageAction(room, stage, action);
   };
 
   const calculateDelay = (room: RoomSetup): { isDelayed: boolean; minutes: number } => {
@@ -1269,6 +1288,15 @@ export default function SetupSala() {
           </div>
         </div>
       </div>
+
+      <VoiceCommandPanel
+        stages={timelineStages}
+        rooms={rooms.map((r) => ({ id: r.id, code: r.code, name: r.patientName || r.name, caseId: r.caseId }))}
+        selectedRoomId={selectedRoom}
+        onSelectRoom={(id) => setSelectedRoom(id)}
+        checkAction={voiceCheckAction}
+        runAction={voiceRunAction}
+      />
     </div>
   );
 }
