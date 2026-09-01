@@ -1,4 +1,4 @@
-// Text-to-speech helper (pt-BR) used for spoken confirmations.
+// Text-to-speech helper (pt-BR) com fila: nunca sobrepõe uma fala na outra.
 
 let ptVoice: SpeechSynthesisVoice | null = null;
 let voicesLoaded = false;
@@ -23,26 +23,77 @@ export function ttsSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
-/** Rough estimate of how long an utterance takes (ms) — used to mute the
- *  microphone handler while the app is talking, so it does not hear itself. */
+/** Estimativa de duração de uma fala (ms) — usada como rede de segurança. */
 export function estimateSpeechMs(text: string): number {
   return Math.max(900, Math.round(text.length * 68) + 500);
 }
 
-export function speak(text: string, opts: { rate?: number; pitch?: number; volume?: number } = {}): void {
-  if (!ttsSupported() || !text) return;
+interface SpeakOpts {
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+  onEnd?: () => void;
+}
+
+const queue: Array<{ text: string; opts: SpeakOpts }> = [];
+let active = false;
+
+function pump() {
+  if (active || !ttsSupported()) return;
+  const item = queue.shift();
+  if (!item) return;
+  active = true;
+
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    active = false;
+    try {
+      item.opts.onEnd?.();
+    } catch {
+      /* ignore */
+    }
+    pump();
+  };
+
   try {
     if (!voicesLoaded) loadVoices();
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter = new SpeechSynthesisUtterance(item.text);
     utter.lang = 'pt-BR';
     if (ptVoice) utter.voice = ptVoice;
-    utter.rate = opts.rate ?? 1.05;
-    utter.pitch = opts.pitch ?? 1;
-    utter.volume = opts.volume ?? 1;
-    synth.speak(utter);
+    utter.rate = item.opts.rate ?? 1.05;
+    utter.pitch = item.opts.pitch ?? 1;
+    utter.volume = item.opts.volume ?? 1;
+    utter.onend = done;
+    utter.onerror = done;
+    window.speechSynthesis.speak(utter);
+    // Alguns motores nunca disparam onend.
+    window.setTimeout(() => {
+      if (active && !finished) done();
+    }, estimateSpeechMs(item.text) + 2000);
   } catch {
-    /* ignore synthesis failures */
+    done();
+  }
+}
+
+/** Enfileira uma fala. Não interrompe o que já está tocando. */
+export function speak(text: string, opts: SpeakOpts = {}): void {
+  if (!ttsSupported() || !text) return;
+  queue.push({ text, opts });
+  pump();
+}
+
+export function isSpeaking(): boolean {
+  return active || queue.length > 0;
+}
+
+export function cancelSpeech(): void {
+  queue.length = 0;
+  active = false;
+  try {
+    window.speechSynthesis.cancel();
+  } catch {
+    /* ignore */
   }
 }

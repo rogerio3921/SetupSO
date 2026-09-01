@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type SpeechErrorKind =
-  | null
-  | 'unsupported'
-  | 'mic-denied'
-  | 'network'
-  | 'unknown';
+export type SpeechErrorKind = null | 'unsupported' | 'mic-denied' | 'network' | 'unknown';
 
 export interface SpeechRecognitionState {
   supported: boolean;
@@ -18,21 +13,21 @@ export interface SpeechRecognitionState {
 export interface UseSpeechRecognitionArgs {
   enabled: boolean;
   lang?: string;
-  /** Called for every finalized utterance, with the ranked alternatives. */
-  onFinal: (alternatives: string[]) => void;
+  /**
+   * Uma frase falada costuma gerar VÁRIOS resultados finais (o navegador vai
+   * "fechando" pedaços). Em vez de disparar `onFinal` para cada pedaço, os
+   * pedaços são acumulados e enviados juntos depois de `aggregateMs` de
+   * silêncio — assim o comando é processado uma única vez.
+   */
+  aggregateMs?: number;
+  /** Chamado uma vez por enunciado, com frases candidatas (melhor primeiro). */
+  onFinal: (candidates: string[]) => void;
 }
 
-/**
- * Long-running wrapper around the Web Speech API tuned for an always-on
- * "listen for a command" use case:
- *  - continuous, restarts itself when the browser ends the session (~60s)
- *  - exponential backoff on `network` errors, cleared on the next result
- *  - a watchdog that force-restarts if the engine goes silent
- *  - stops (and does not loop) when the user denies microphone access
- */
 export function useSpeechRecognition({
   enabled,
   lang = 'pt-BR',
+  aggregateMs = 1000,
   onFinal,
 }: UseSpeechRecognitionArgs): SpeechRecognitionState {
   const Ctor =
@@ -53,8 +48,15 @@ export function useSpeechRecognition({
   const backoffRef = useRef(0);
   const restartTimerRef = useRef<number | null>(null);
   const lastActivityRef = useRef(Date.now());
+
   const onFinalRef = useRef(onFinal);
   onFinalRef.current = onFinal;
+  const aggregateMsRef = useRef(aggregateMs);
+  aggregateMsRef.current = aggregateMs;
+
+  // Buffer de agregação de resultados finais.
+  const bufferRef = useRef<string[][]>([]);
+  const flushTimerRef = useRef<number | null>(null);
 
   const clearRestartTimer = () => {
     if (restartTimerRef.current !== null) {
@@ -63,12 +65,44 @@ export function useSpeechRecognition({
     }
   };
 
+  const clearFlushTimer = () => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  };
+
+  const flushBuffer = useCallback(() => {
+    clearFlushTimer();
+    const parts = bufferRef.current;
+    bufferRef.current = [];
+    if (!parts.length) return;
+
+    const combined = parts
+      .map((alts) => (alts[0] ?? '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const last = parts[parts.length - 1] ?? [];
+    const candidates = Array.from(
+      new Set([combined, ...last].map((s) => s.trim()).filter(Boolean)),
+    );
+    if (candidates.length) onFinalRef.current(candidates);
+  }, []);
+
+  const scheduleFlush = useCallback(() => {
+    clearFlushTimer();
+    flushTimerRef.current = window.setTimeout(flushBuffer, aggregateMsRef.current);
+  }, [flushBuffer]);
+
   const startNow = useCallback(() => {
     if (!wantRef.current || !recRef.current) return;
     try {
       recRef.current.start();
     } catch {
-      /* start() throws if it is already running — safe to ignore */
+      /* já está rodando — ignora */
     }
   }, []);
 
@@ -111,7 +145,10 @@ export function useSpeechRecognition({
             const t = result[j]?.transcript;
             if (t) alts.push(t);
           }
-          if (alts.length) onFinalRef.current(alts);
+          if (alts.length) {
+            bufferRef.current.push(alts);
+            scheduleFlush();
+          }
         } else {
           interimStr += result[0]?.transcript ?? '';
         }
@@ -129,7 +166,7 @@ export function useSpeechRecognition({
         return;
       }
       if (kind === 'no-speech' || kind === 'aborted') {
-        return; // benign; onend will restart if still wanted
+        return; // benigno; onend reinicia se ainda quisermos
       }
       if (kind === 'network') {
         setError('network');
@@ -142,14 +179,15 @@ export function useSpeechRecognition({
     rec.onend = () => {
       setListening(false);
       setInterim('');
+      flushBuffer(); // não perde um enunciado que estava no buffer
       if (!wantRef.current) return;
       scheduleRestart(backoffRef.current || 300);
     };
 
     return rec;
-  }, [Ctor, lang, scheduleRestart]);
+  }, [Ctor, lang, scheduleFlush, flushBuffer, scheduleRestart]);
 
-  // Enable / disable lifecycle.
+  // Liga / desliga.
   useEffect(() => {
     if (!supported) return;
 
@@ -163,6 +201,8 @@ export function useSpeechRecognition({
     } else {
       wantRef.current = false;
       clearRestartTimer();
+      clearFlushTimer();
+      bufferRef.current = [];
       try {
         recRef.current?.stop();
       } catch {
@@ -175,6 +215,7 @@ export function useSpeechRecognition({
     return () => {
       wantRef.current = false;
       clearRestartTimer();
+      clearFlushTimer();
       try {
         recRef.current?.abort();
       } catch {
@@ -183,7 +224,7 @@ export function useSpeechRecognition({
     };
   }, [enabled, supported, buildRecognition, startNow]);
 
-  // Track connectivity — the Web Speech API needs a network round-trip.
+  // Conectividade — o Web Speech API precisa de rede.
   useEffect(() => {
     const goOnline = () => {
       setOnline(true);
@@ -203,8 +244,7 @@ export function useSpeechRecognition({
     };
   }, [scheduleRestart]);
 
-  // Watchdog: some browsers silently stop emitting events. If we should be
-  // listening but nothing has happened for a while, force a restart cycle.
+  // Watchdog: alguns navegadores param de emitir eventos silenciosamente.
   useEffect(() => {
     if (!supported || !enabled) return;
     const id = window.setInterval(() => {
@@ -214,7 +254,7 @@ export function useSpeechRecognition({
         try {
           recRef.current?.stop();
         } catch {
-          /* onend will reschedule */
+          /* onend reagenda */
         }
       }
     }, 8000);
